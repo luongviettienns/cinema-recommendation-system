@@ -5,6 +5,7 @@ coverage/
 .vite/
 *.zip
 .agents/
+.worktrees/
 
 # Project documentation is maintained locally only
 *.md
