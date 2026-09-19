@@ -87,4 +87,19 @@ describe('StaffManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: /^xác nhận khóa$/i }));
     await waitFor(() => expect(adminStaffService.updateStaff).toHaveBeenCalledWith('staff-1', { isActive: false }));
   });
+
+  it('focuses the confirmation action and restores focus after Escape closes the dialog', async () => {
+    render(<StaffManagement />);
+
+    const trigger = await screen.findByRole('button', { name: /khóa tài khoản/i });
+    trigger.focus();
+    fireEvent.click(trigger);
+
+    const confirmButton = screen.getByRole('button', { name: /^xác nhận khóa$/i });
+    await waitFor(() => expect(confirmButton).toHaveFocus());
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
 });
