@@ -63,8 +63,9 @@ describe('Showtime API Endpoints (/api/v1/showtimes)', () => {
   });
 
   it('POST /api/v1/showtimes - should successfully schedule a new showtime as Admin', async () => {
-    // Scheduled 2 days in the future to avoid seed overlaps
-    const startTime = new Date(Date.now() + 48 * 3600 * 1000);
+    // Seeded data occupies 19:30 on the next three calendar days. Keep this
+    // fixture beyond that fixed seed window so it can exercise creation first.
+    const startTime = new Date(Date.now() + 7 * 24 * 3600 * 1000);
     startTime.setMinutes(0, 0, 0);
 
     const res = await request(app)
