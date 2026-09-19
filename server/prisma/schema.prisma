@@ -54,44 +54,47 @@ enum PaymentMethod {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  phone     String?
-  role      Role     @default(CUSTOMER)
-  avatar    String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(uuid())
+  email            String   @unique
+  password         String
+  name             String
+  phone            String?
+  role             Role     @default(CUSTOMER)
+  avatar           String?  @db.Text
+  isActive         Boolean  @default(true)
+  assignedCinemaId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  bookings  Booking[]
-  reviews   Review[]
-  scannedTickets Ticket[] @relation("StaffScannedTickets")
+  assignedCinema Cinema?   @relation("CinemaAssignedStaff", fields: [assignedCinemaId], references: [id], onDelete: SetNull)
+  bookings       Booking[]
+  reviews        Review[]
+  scannedTickets Ticket[]  @relation("StaffScannedTickets")
 
   @@map("users")
 }
 
 model Movie {
-  id            String      @id @default(uuid())
+  id            String    @id @default(uuid())
   title         String
   originalTitle String?
-  description   String      @db.Text
-  duration      Int         // in minutes
+  description   String    @db.Text
+  duration      Int // in minutes
   releaseDate   DateTime
-  poster        String      @db.Text
-  backdrop      String      @db.Text
-  rating        Float       @default(8.0)
-  ageRating     AgeRating   @default(P)
-  trailerUrl    String?     @db.Text
+  poster        String    @db.Text
+  backdrop      String    @db.Text
+  rating        Float     @default(8.0)
+  ageRating     AgeRating @default(P)
+  trailerUrl    String?   @db.Text
   director      String?
-  isHot         Boolean     @default(false)
-  isNowShowing  Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  isHot         Boolean   @default(false)
+  isNowShowing  Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  movieGenres   MovieGenre[]
-  showtimes     Showtime[]
-  reviews       Review[]
+  movieGenres MovieGenre[]
+  showtimes   Showtime[]
+  reviews     Review[]
 
   @@map("movies")
 }
@@ -126,7 +129,8 @@ model Cinema {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  rooms     Room[]
+  rooms         Room[]
+  assignedStaff User[] @relation("CinemaAssignedStaff")
 
   @@map("cinemas")
 }
@@ -140,24 +144,24 @@ model Room {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  cinema     Cinema     @relation(fields: [cinemaId], references: [id], onDelete: Cascade)
-  seats      Seat[]
-  showtimes  Showtime[]
+  cinema    Cinema     @relation(fields: [cinemaId], references: [id], onDelete: Cascade)
+  seats     Seat[]
+  showtimes Showtime[]
 
   @@map("rooms")
 }
 
 model Seat {
-  id        String   @id @default(uuid())
-  roomId    String
-  seatNumber String   // e.g. A1, E5, H1
-  row       String   // e.g. A, B, C
-  col       Int      // e.g. 1, 2, 3
-  seatType  SeatType @default(REGULAR)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String   @id @default(uuid())
+  roomId     String
+  seatNumber String // e.g. A1, E5, H1
+  row        String // e.g. A, B, C
+  col        Int // e.g. 1, 2, 3
+  seatType   SeatType @default(REGULAR)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  room      Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
   bookingSeats BookingSeat[]
 
   @@unique([roomId, seatNumber])
@@ -176,9 +180,9 @@ model Showtime {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
-  movie     Movie       @relation(fields: [movieId], references: [id], onDelete: Cascade)
-  room      Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  bookings  Booking[]
+  movie        Movie         @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bookings     Booking[]
   bookingSeats BookingSeat[]
 
   @@index([roomId, startTime, endTime])
@@ -192,7 +196,7 @@ model Booking {
   showtimeId  String
   status      BookingStatus @default(HOLDING)
   totalAmount Int           @default(0)
-  expiresAt   DateTime      // 7 minutes countdown timestamp
+  expiresAt   DateTime // 7 minutes countdown timestamp
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -207,15 +211,15 @@ model Booking {
 }
 
 model BookingSeat {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   bookingId  String
   seatId     String
-  showtimeId String   // Direct link for fast concurrency lock & collision check
-  price      Int      @default(90000)
+  showtimeId String // Direct link for fast concurrency lock & collision check
+  price      Int    @default(90000)
 
-  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  seat       Seat     @relation(fields: [seatId], references: [id], onDelete: Cascade)
-  showtime   Showtime @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  booking  Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  seat     Seat     @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  showtime Showtime @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
 
   // Ensure same seat in same showtime cannot be booked twice concurrently
   @@unique([showtimeId, seatId])
@@ -234,24 +238,24 @@ model Payment {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@map("payments")
 }
 
 model Ticket {
-  id              String    @id @default(uuid())
-  bookingId       String    @unique
-  ticketCode      String    @unique // e.g. TK-982341
-  qrCode          String    @db.Text // HMAC-signed string
-  isUsed          Boolean   @default(false)
-  scannedAt       DateTime?
+  id               String    @id @default(uuid())
+  bookingId        String    @unique
+  ticketCode       String    @unique // e.g. TK-982341
+  qrCode           String    @db.Text // HMAC-signed string
+  isUsed           Boolean   @default(false)
+  scannedAt        DateTime?
   scannedByStaffId String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  staff           User?     @relation("StaffScannedTickets", fields: [scannedByStaffId], references: [id])
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  staff   User?   @relation("StaffScannedTickets", fields: [scannedByStaffId], references: [id])
 
   @@map("tickets")
 }
@@ -265,8 +269,8 @@ model Review {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("reviews")
 }

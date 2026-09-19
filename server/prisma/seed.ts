@@ -156,6 +156,22 @@ async function main() {
     }
   }
 
+  const assignedCinema = await prisma.cinema.findFirst({
+    where: { name: cinemasData[0].name },
+  });
+
+  if (!assignedCinema) {
+    throw new Error('The seeded cinema for the staff account was not found.');
+  }
+
+  await prisma.user.update({
+    where: { id: staff.id },
+    data: {
+      isActive: true,
+      assignedCinemaId: assignedCinema.id,
+    },
+  });
+
   console.log(`Created ${cinemasData.length} cinemas with ${allRooms.length} rooms (80 seats each).`);
 
   // 4. Seed Real TMDb Movies
