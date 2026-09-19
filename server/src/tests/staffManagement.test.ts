@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { app } from '../app';
 import { prisma } from '../prisma';
@@ -60,6 +60,21 @@ describe('Admin Staff Management API (/api/v1/admin/staff)', () => {
     expect(customerResponse.body.error.code).toBe('FORBIDDEN');
     expect(staffResponse.status).toBe(403);
     expect(staffResponse.body.error.code).toBe('FORBIDDEN');
+  });
+
+  it('forwards an authentication database lookup failure to the global error handler', async () => {
+    const userDelegate = prisma.user;
+    const originalFindUnique = userDelegate.findUnique.bind(userDelegate);
+    vi.spyOn(userDelegate, 'findUnique')
+      .mockRejectedValueOnce(new Error('Database unavailable'))
+      .mockImplementation(originalFindUnique);
+
+    const response = await request(app)
+      .get('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(500);
+    expect(response.body.error.code).toBe('INTERNAL_SERVER_ERROR');
   });
 
   it('allows Admin to create an active Staff assigned to a real cinema without returning a password', async () => {
@@ -159,6 +174,28 @@ describe('Admin Staff Management API (/api/v1/admin/staff)', () => {
     expect(missingCinemaResponse.body.error.code).toBe('STAFF_CINEMA_REQUIRED');
     expect(unknownCinemaResponse.status).toBe(404);
     expect(unknownCinemaResponse.body.error.code).toBe('CINEMA_NOT_FOUND');
+  });
+
+  it('rejects non-string Staff update fields with a validation error', async () => {
+    const responses = await Promise.all([
+      request(app)
+        .patch(`/api/v1/admin/staff/${createdStaffId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ name: 123 }),
+      request(app)
+        .patch(`/api/v1/admin/staff/${createdStaffId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ phone: null }),
+      request(app)
+        .patch(`/api/v1/admin/staff/${createdStaffId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ assignedCinemaId: 123 }),
+    ]);
+
+    for (const response of responses) {
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe('VALIDATION_ERROR');
+    }
   });
 
   it('rejects mutations of ADMIN accounts', async () => {

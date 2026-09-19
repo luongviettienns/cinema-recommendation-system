@@ -7,6 +7,9 @@ import {
   UpdateStaffDTO,
 } from '../services/staffManagementService';
 
+const isInvalidOptionalString = (value: unknown): boolean =>
+  value !== undefined && typeof value !== 'string';
+
 export class AdminController {
   async getDashboard(req: Request, res: Response, next: NextFunction) {
     try {
@@ -85,7 +88,16 @@ export class AdminController {
   async createStaff(req: Request, res: Response, next: NextFunction) {
     try {
       const { name, email, password, phone, assignedCinemaId } = req.body;
-      if (!name || !email || !password) {
+      if (
+        !name ||
+        !email ||
+        !password ||
+        typeof name !== 'string' ||
+        typeof email !== 'string' ||
+        typeof password !== 'string' ||
+        isInvalidOptionalString(phone) ||
+        isInvalidOptionalString(assignedCinemaId)
+      ) {
         return res.status(400).json({
           success: false,
           error: {
@@ -100,7 +112,7 @@ export class AdminController {
         email,
         password,
         phone,
-        assignedCinemaId: typeof assignedCinemaId === 'string' ? assignedCinemaId : '',
+        assignedCinemaId: assignedCinemaId ?? '',
       } satisfies CreateStaffDTO);
       res.status(201).json({
         success: true,
@@ -114,7 +126,12 @@ export class AdminController {
   async updateStaff(req: Request, res: Response, next: NextFunction) {
     try {
       const { name, phone, assignedCinemaId, isActive } = req.body;
-      if (isActive !== undefined && typeof isActive !== 'boolean') {
+      if (
+        isInvalidOptionalString(name) ||
+        isInvalidOptionalString(phone) ||
+        isInvalidOptionalString(assignedCinemaId) ||
+        (isActive !== undefined && typeof isActive !== 'boolean')
+      ) {
         return res.status(400).json({
           success: false,
           error: {

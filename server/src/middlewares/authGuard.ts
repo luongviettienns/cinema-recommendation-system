@@ -18,32 +18,46 @@ declare global {
 }
 
 export const authGuard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  let token: string | undefined;
+
+  // 1. Check Bearer token from header
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+  // 2. Or check HttpOnly Cookie
+  else if (req.cookies && req.cookies.accessToken) {
+    token = req.cookies.accessToken;
+  }
+
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Vui lòng đăng nhập để thực hiện thao tác này',
+      },
+    });
+    return;
+  }
+
+  const secret = process.env.JWT_ACCESS_SECRET || 'cinelight-access-super-secret-key-2026-xyz';
+  let decoded: AuthUserPayload;
+
   try {
-    let token: string | undefined;
+    decoded = jwt.verify(token, secret) as AuthUserPayload;
+  } catch (error) {
+    res.status(401).json({
+      success: false,
+      error: {
+        code: 'TOKEN_INVALID',
+        message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn',
+      },
+    });
+    return;
+  }
 
-    // 1. Check Bearer token from header
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    }
-    // 2. Or check HttpOnly Cookie
-    else if (req.cookies && req.cookies.accessToken) {
-      token = req.cookies.accessToken;
-    }
-
-    if (!token) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Vui lòng đăng nhập để thực hiện thao tác này',
-        },
-      });
-      return;
-    }
-
-    const secret = process.env.JWT_ACCESS_SECRET || 'cinelight-access-super-secret-key-2026-xyz';
-    const decoded = jwt.verify(token, secret) as AuthUserPayload;
+  try {
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
@@ -66,14 +80,8 @@ export const authGuard = async (req: Request, res: Response, next: NextFunction)
 
     req.user = { id: user.id, role: user.role };
     next();
-  } catch (error: any) {
-    res.status(401).json({
-      success: false,
-      error: {
-        code: 'TOKEN_INVALID',
-        message: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn',
-      },
-    });
+  } catch (error) {
+    next(error);
   }
 };
 
