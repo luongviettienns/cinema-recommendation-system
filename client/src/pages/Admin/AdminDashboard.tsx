@@ -17,6 +17,7 @@ import { Button } from '../../components/ui/Button';
 import { DashboardOverview } from './DashboardOverview';
 import { MovieManagement } from './MovieManagement';
 import { ShowtimeManagement } from './ShowtimeManagement';
+import { StaffManagement } from './StaffManagement';
 
 interface IRecentBooking {
   id: string;
@@ -34,7 +35,7 @@ interface IRecentBooking {
 }
 
 export const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'movies' | 'showtimes' | 'bookings' | 'cinemas'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'movies' | 'showtimes' | 'bookings' | 'cinemas' | 'staff'>('overview');
   const [bookingFilter, setBookingFilter] = useState('');
 
   // Recent bookings list for Bookings tab
@@ -224,6 +225,18 @@ export const AdminDashboard: React.FC = () => {
           <MapPin className="w-4 h-4" />
           <span>Cụm Rạp & Sơ Đồ Ghế</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('staff')}
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'staff'
+              ? 'bg-rose-600 text-white shadow-md shadow-rose-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4" />
+          <span>Quản lý nhân viên</span>
+        </button>
       </div>
 
       {/* Tab 1: Dashboard Overview */}
@@ -386,6 +399,8 @@ export const AdminDashboard: React.FC = () => {
           ))}
         </div>
       )}
+
+      {activeTab === 'staff' && <StaffManagement />}
     </div>
   );
 };
