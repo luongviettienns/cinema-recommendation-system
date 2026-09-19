@@ -1,6 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { analyticsService } from '../services/analyticsService';
 import { Role } from '@prisma/client';
+import {
+  CreateStaffDTO,
+  staffManagementService,
+  UpdateStaffDTO,
+} from '../services/staffManagementService';
 
 export class AdminController {
   async getDashboard(req: Request, res: Response, next: NextFunction) {
@@ -59,6 +64,75 @@ export class AdminController {
       res.status(200).json({
         success: true,
         data: updatedUser,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async listStaff(req: Request, res: Response, next: NextFunction) {
+    try {
+      const staff = await staffManagementService.list();
+      res.status(200).json({
+        success: true,
+        data: staff,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async createStaff(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { name, email, password, phone, assignedCinemaId } = req.body;
+      if (!name || !email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Vui lòng cung cấp đầy đủ email, mật khẩu và họ tên',
+          },
+        });
+      }
+
+      const staff = await staffManagementService.create({
+        name,
+        email,
+        password,
+        phone,
+        assignedCinemaId: typeof assignedCinemaId === 'string' ? assignedCinemaId : '',
+      } satisfies CreateStaffDTO);
+      res.status(201).json({
+        success: true,
+        data: staff,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async updateStaff(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { name, phone, assignedCinemaId, isActive } = req.body;
+      if (isActive !== undefined && typeof isActive !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Trạng thái hoạt động không hợp lệ',
+          },
+        });
+      }
+
+      const staff = await staffManagementService.update(req.params.id, {
+        name,
+        phone,
+        assignedCinemaId,
+        isActive,
+      } satisfies UpdateStaffDTO);
+      res.status(200).json({
+        success: true,
+        data: staff,
       });
     } catch (error) {
       next(error);

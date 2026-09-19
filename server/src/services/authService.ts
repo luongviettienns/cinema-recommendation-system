@@ -64,6 +64,13 @@ export const authService = {
       throw error;
     }
 
+    if (!user.isActive) {
+      const error: any = new Error('Tài khoản nhân viên đã bị vô hiệu hóa');
+      error.statusCode = 403;
+      error.code = 'STAFF_ACCOUNT_DISABLED';
+      throw error;
+    }
+
     const isMatch = await bcrypt.compare(data.password, user.password);
     if (!isMatch) {
       const error: any = new Error('Tài khoản hoặc mật khẩu không chính xác');

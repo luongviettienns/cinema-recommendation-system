@@ -1,11 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
+import { prisma } from '../prisma';
 
 export interface AuthUserPayload {
   id: string;
-  email: string;
-  name: string;
   role: Role;
 }
 
@@ -18,7 +17,7 @@ declare global {
   }
 }
 
-export const authGuard = (req: Request, res: Response, next: NextFunction): void => {
+export const authGuard = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     let token: string | undefined;
 
@@ -45,8 +44,27 @@ export const authGuard = (req: Request, res: Response, next: NextFunction): void
 
     const secret = process.env.JWT_ACCESS_SECRET || 'cinelight-access-super-secret-key-2026-xyz';
     const decoded = jwt.verify(token, secret) as AuthUserPayload;
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        role: true,
+        isActive: true,
+      },
+    });
 
-    req.user = decoded;
+    if (!user || !user.isActive) {
+      res.status(403).json({
+        success: false,
+        error: {
+          code: 'STAFF_ACCOUNT_DISABLED',
+          message: 'Tài khoản nhân viên đã bị vô hiệu hóa',
+        },
+      });
+      return;
+    }
+
+    req.user = { id: user.id, role: user.role };
     next();
   } catch (error: any) {
     res.status(401).json({

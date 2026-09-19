@@ -11,5 +11,8 @@ router.get('/dashboard', (req, res, next) => adminController.getDashboard(req, r
 router.get('/recent-bookings', (req, res, next) => adminController.getRecentBookings(req, res, next));
 router.get('/users', (req, res, next) => adminController.getUsers(req, res, next));
 router.patch('/users/:id/role', (req, res, next) => adminController.updateUserRole(req, res, next));
+router.get('/staff', (req, res, next) => adminController.listStaff(req, res, next));
+router.post('/staff', (req, res, next) => adminController.createStaff(req, res, next));
+router.patch('/staff/:id', (req, res, next) => adminController.updateStaff(req, res, next));
 
 export default router;
