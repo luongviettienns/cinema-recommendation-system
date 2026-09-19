@@ -1,0 +1,272 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  STAFF
+  ADMIN
+}
+
+enum AgeRating {
+  P
+  K
+  T13
+  T16
+  T18
+}
+
+enum MovieFormat {
+  TWO_D
+  THREE_D
+  IMAX
+}
+
+enum SeatType {
+  REGULAR
+  VIP
+  COUPLE
+}
+
+enum BookingStatus {
+  HOLDING
+  PAID
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PaymentMethod {
+  VIETQR
+  VNPAY
+  MOMO
+  CASH
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  avatar    String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings  Booking[]
+  reviews   Review[]
+  scannedTickets Ticket[] @relation("StaffScannedTickets")
+
+  @@map("users")
+}
+
+model Movie {
+  id            String      @id @default(uuid())
+  title         String
+  originalTitle String?
+  description   String      @db.Text
+  duration      Int         // in minutes
+  releaseDate   DateTime
+  poster        String      @db.Text
+  backdrop      String      @db.Text
+  rating        Float       @default(8.0)
+  ageRating     AgeRating   @default(P)
+  trailerUrl    String?     @db.Text
+  director      String?
+  isHot         Boolean     @default(false)
+  isNowShowing  Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  movieGenres   MovieGenre[]
+  showtimes     Showtime[]
+  reviews       Review[]
+
+  @@map("movies")
+}
+
+model Genre {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  slug        String       @unique
+  movieGenres MovieGenre[]
+
+  @@map("genres")
+}
+
+model MovieGenre {
+  movieId String
+  genreId String
+
+  movie Movie @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre Genre @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([movieId, genreId])
+  @@map("movie_genres")
+}
+
+model Cinema {
+  id        String   @id @default(uuid())
+  name      String
+  address   String
+  city      String   @default("TP. Hồ Chí Minh")
+  phone     String?
+  imageUrl  String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rooms     Room[]
+
+  @@map("cinemas")
+}
+
+model Room {
+  id         String   @id @default(uuid())
+  cinemaId   String
+  name       String
+  roomType   String   @default("STANDARD") // STANDARD, IMAX, 3D
+  totalSeats Int      @default(80)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cinema     Cinema     @relation(fields: [cinemaId], references: [id], onDelete: Cascade)
+  seats      Seat[]
+  showtimes  Showtime[]
+
+  @@map("rooms")
+}
+
+model Seat {
+  id        String   @id @default(uuid())
+  roomId    String
+  seatNumber String   // e.g. A1, E5, H1
+  row       String   // e.g. A, B, C
+  col       Int      // e.g. 1, 2, 3
+  seatType  SeatType @default(REGULAR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room      Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bookingSeats BookingSeat[]
+
+  @@unique([roomId, seatNumber])
+  @@map("seats")
+}
+
+model Showtime {
+  id        String      @id @default(uuid())
+  movieId   String
+  roomId    String
+  startTime DateTime
+  endTime   DateTime
+  format    MovieFormat @default(TWO_D)
+  language  String      @default("Phụ đề")
+  basePrice Int         @default(90000)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  movie     Movie       @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  room      Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  bookings  Booking[]
+  bookingSeats BookingSeat[]
+
+  @@index([roomId, startTime, endTime])
+  @@map("showtimes")
+}
+
+model Booking {
+  id          String        @id @default(uuid())
+  bookingCode String        @unique // e.g. CL-515302
+  userId      String
+  showtimeId  String
+  status      BookingStatus @default(HOLDING)
+  totalAmount Int           @default(0)
+  expiresAt   DateTime      // 7 minutes countdown timestamp
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showtime     Showtime      @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+  bookingSeats BookingSeat[]
+  payment      Payment?
+  ticket       Ticket?
+
+  @@index([status, expiresAt])
+  @@map("bookings")
+}
+
+model BookingSeat {
+  id         String   @id @default(uuid())
+  bookingId  String
+  seatId     String
+  showtimeId String   // Direct link for fast concurrency lock & collision check
+  price      Int      @default(90000)
+
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  seat       Seat     @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  showtime   Showtime @relation(fields: [showtimeId], references: [id], onDelete: Cascade)
+
+  // Ensure same seat in same showtime cannot be booked twice concurrently
+  @@unique([showtimeId, seatId])
+  @@map("booking_seats")
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  bookingId     String        @unique
+  transactionId String?
+  paymentMethod PaymentMethod @default(VIETQR)
+  amount        Int
+  status        PaymentStatus @default(PENDING)
+  signature     String?       @db.Text
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model Ticket {
+  id              String    @id @default(uuid())
+  bookingId       String    @unique
+  ticketCode      String    @unique // e.g. TK-982341
+  qrCode          String    @db.Text // HMAC-signed string
+  isUsed          Boolean   @default(false)
+  scannedAt       DateTime?
+  scannedByStaffId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  booking         Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  staff           User?     @relation("StaffScannedTickets", fields: [scannedByStaffId], references: [id])
+
+  @@map("tickets")
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  movieId   String
+  userId    String
+  rating    Int      @default(5) // 1 - 5 stars or 1 - 10
+  comment   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movie     Movie    @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}

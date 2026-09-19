@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  
+  * {
+    border-color: #e2e8f0;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #f8fafc;
+    color: #0f172a;
+    overflow-x: hidden;
+  }
+
+  /* Accessible focus-visible for tab navigation */
+  :focus-visible {
+    outline: 2px solid #e11d48;
+    outline-offset: 2px;
+  }
+}
+
+/* Reduced motion preference respect */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Custom Scrollbar for Light Theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Curved Screen effect */
+.curved-screen {
+  background: linear-gradient(180deg, #f1f5f9 0%, #ffffff 100%);
+  border-top: 4px solid #e11d48;
+  border-radius: 50% 50% 0 0 / 15% 15% 0 0;
+  box-shadow: 0 -12px 28px -6px rgba(225, 29, 72, 0.12);
+}
+
+/* Perforated Ticket border effect */
+.perforated-ticket {
+  position: relative;
+  background: #ffffff;
+}
+
+.perforated-left-notch,
+.perforated-right-notch {
+  position: absolute;
+  top: 68%;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #f8fafc;
+  z-index: 10;
+}
+
+.perforated-left-notch {
+  left: -10px;
+}
+
+.perforated-right-notch {
+  right: -10px;
+}
+
+.perforated-divider {
+  position: absolute;
+  top: calc(68% + 9px);
+  left: 12px;
+  right: 12px;
+  border-top: 2px dashed #cbd5e1;
+}
+
+
+/* Print Optimization */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-ticket, #printable-ticket * {
+    visibility: visible;
+  }
+  #printable-ticket {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* === CINEMATIC LIGHT THEME UTILITIES === */
+
+/* Shimmer Light Sweep Effect */
+@keyframes shimmer-sweep {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-shimmer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    transparent 100%
+  );
+  animation: shimmer-sweep 3s infinite ease-in-out;
+  pointer-events: none;
+}
+
+/* Film Strip Perforation Border */
+.film-strip-border {
+  background-image: radial-gradient(#cbd5e1 3px, transparent 3.5px);
+  background-size: 16px 16px;
+}
+
+/* Ambient Cinema Glow for Light Background */
+.ambient-cinema-glow {
+  box-shadow: 0 20px 45px -12px rgba(225, 29, 72, 0.18), 0 0 25px -5px rgba(244, 63, 94, 0.12);
+}
+
+.ambient-cinema-glow-hover {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ambient-cinema-glow-hover:hover {
+  box-shadow: 0 25px 50px -12px rgba(225, 29, 72, 0.28), 0 0 35px -5px rgba(244, 63, 94, 0.18);
+  border-color: rgba(251, 113, 133, 0.45);
+}
+
+/* 3D Perspective Container */
+.perspective-container {
+  perspective: 1200px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
