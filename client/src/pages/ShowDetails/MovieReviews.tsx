@@ -504,3 +504,5 @@ export const MovieReviews: React.FC<MovieReviewsProps> = ({
     </section>
   );
 };
+
+export default MovieReviews;
