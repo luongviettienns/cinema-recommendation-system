@@ -10,7 +10,9 @@ import {
 
 export class StaffService {
   private secret =
-    process.env.PAYMENT_WEBHOOK_SECRET || 'cinelight-payment-secret-key-2026';
+    process.env.TICKET_QR_SECRET ||
+    process.env.HMAC_QR_SECRET ||
+    'cinelight-ticket-qr-secret-2026-distinct';
 
   /**
    * 1. Soát vé QR / Check-in tại cổng rạp (quét liên tục, chống quét 2 lần)

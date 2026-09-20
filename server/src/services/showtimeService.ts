@@ -184,6 +184,20 @@ export class ShowtimeService {
     }
 
     const start = new Date(data.startTime);
+    if (isNaN(start.getTime())) {
+      const err = new Error('Thời gian bắt đầu suất chiếu không hợp lệ');
+      (err as any).statusCode = 400;
+      (err as any).code = 'INVALID_START_TIME';
+      throw err;
+    }
+
+    if (start <= new Date()) {
+      const err = new Error('Không thể lên lịch suất chiếu trong quá khứ hoặc thời điểm đã qua');
+      (err as any).statusCode = 400;
+      (err as any).code = 'SHOWTIME_IN_PAST';
+      throw err;
+    }
+
     // End time = start + movie duration (minutes) + 15 minutes cleaning/prep buffer
     const durationWithBufferMinutes = movie.duration + 15;
     const end = new Date(start.getTime() + durationWithBufferMinutes * 60 * 1000);
@@ -231,18 +245,18 @@ export class ShowtimeService {
   }
 
   /**
-   * Delete a showtime (only if no paid bookings exist)
+   * Delete a showtime (only if no paid or refund-pending bookings exist)
    */
   async deleteShowtime(id: string) {
-    const paidBooking = await prisma.booking.findFirst({
+    const activeBooking = await prisma.booking.findFirst({
       where: {
         showtimeId: id,
-        status: 'PAID',
+        status: { in: ['PAID', 'REFUND_PENDING'] },
       },
     });
 
-    if (paidBooking) {
-      const err = new Error('Không thể xóa suất chiếu đã có khách thanh toán vé');
+    if (activeBooking) {
+      const err = new Error('Không thể xóa suất chiếu đã có khách thanh toán vé hoặc đang chờ duyệt hoàn tiền');
       (err as any).statusCode = 400;
       (err as any).code = 'SHOWTIME_HAS_PAID_BOOKINGS';
       throw err;
