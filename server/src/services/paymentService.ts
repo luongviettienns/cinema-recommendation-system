@@ -366,6 +366,36 @@ export class PaymentService {
       ticket: booking.ticket,
     };
   }
+
+  /**
+   * Sandbox simulation: simulate successful customer payment webhook callback
+   */
+  async sandboxConfirm(bookingId: string) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+    if (!booking) {
+      const err = new Error('Không tìm thấy đơn đặt vé');
+      (err as any).statusCode = 404;
+      (err as any).code = 'BOOKING_NOT_FOUND';
+      throw err;
+    }
+
+    const transactionId = `TXN-SB-${Date.now()}`;
+    const rawData = `${booking.bookingCode}|${transactionId}|${booking.totalAmount}`;
+    const signature = crypto
+      .createHmac('sha512', this.webhookSecret)
+      .update(rawData)
+      .digest('hex');
+
+    return this.handleWebhook({
+      bookingCode: booking.bookingCode,
+      transactionId,
+      amount: booking.totalAmount,
+      paymentMethod: PaymentMethod.VIETQR,
+      signature,
+    });
+  }
 }
 
 export const paymentService = new PaymentService();

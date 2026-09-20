@@ -11,6 +11,7 @@ router.use(authGuard, roleGuard(['ADMIN']));
 router.get('/dashboard', (req, res, next) => adminController.getDashboard(req, res, next));
 router.get('/analytics/export-excel', (req, res, next) => adminController.exportRevenueExcel(req, res, next));
 router.get('/recent-bookings', (req, res, next) => adminController.getRecentBookings(req, res, next));
+router.get('/bookings', (req, res, next) => adminController.getRecentBookings(req, res, next));
 router.get('/users', (req, res, next) => adminController.getUsers(req, res, next));
 router.patch('/users/:id/role', (req, res, next) => adminController.updateUserRole(req, res, next));
 router.get('/staff', (req, res, next) => adminController.listStaff(req, res, next));

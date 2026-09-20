@@ -8,8 +8,11 @@ interface BookingContextType {
   selectedShowtime: IShowtime | null;
   selectedSeats: ISeat[];
   totalPrice: number;
+  bookingId: string | null;
+  bookingCode: string | null;
   setBookingShowtime: (showtime: IShowtime, movie: IMovie) => void;
   toggleSeat: (seat: ISeat) => void;
+  setHoldInfo: (bookingId: string, bookingCode: string) => void;
   clearBooking: () => void;
 }
 
@@ -19,11 +22,15 @@ export const BookingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [selectedMovie, setSelectedMovie] = useState<IMovie | null>(null);
   const [selectedShowtime, setSelectedShowtime] = useState<IShowtime | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<ISeat[]>([]);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [bookingCode, setBookingCode] = useState<string | null>(null);
 
   const setBookingShowtime = (showtime: IShowtime, movie: IMovie) => {
     setSelectedShowtime(showtime);
     setSelectedMovie(movie);
     setSelectedSeats([]); // reset seats when changing showtime
+    setBookingId(null);
+    setBookingCode(null);
   };
 
   const toggleSeat = (seat: ISeat) => {
@@ -38,10 +45,17 @@ export const BookingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
+  const setHoldInfo = (id: string, code: string) => {
+    setBookingId(id);
+    setBookingCode(code);
+  };
+
   const clearBooking = () => {
     setSelectedMovie(null);
     setSelectedShowtime(null);
     setSelectedSeats([]);
+    setBookingId(null);
+    setBookingCode(null);
   };
 
   const totalPrice = selectedSeats.reduce((sum, seat) => sum + seat.price, 0);
@@ -53,8 +67,11 @@ export const BookingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         selectedShowtime,
         selectedSeats,
         totalPrice,
+        bookingId,
+        bookingCode,
         setBookingShowtime,
         toggleSeat,
+        setHoldInfo,
         clearBooking,
       }}
     >

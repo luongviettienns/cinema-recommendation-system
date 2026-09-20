@@ -217,14 +217,14 @@ export const PerforatedTicket: React.FC<{
         <div className="p-6 pt-8 bg-slate-50/40 flex flex-col items-center text-center space-y-3 border-t border-dashed border-slate-200">
           <div className="bg-white p-3.5 rounded-2xl shadow-sm border border-slate-200/80">
             <QRCodeSVG
-              value={`CINELIGHT:${booking.bookingCode}:${booking.showtimeId}:${booking.seats.join(',')}`}
+              value={booking.ticketQrCode || `CINELIGHT:${booking.bookingCode}:${booking.showtimeId}:${booking.seats.join(',')}`}
               size={124}
               level="H"
             />
           </div>
           <div>
             <p className="text-xs font-black text-slate-800 tracking-widest font-mono uppercase">
-              SCAN TO ENTER • {booking.bookingCode}
+              SCAN TO ENTER • {booking.ticketCode || booking.bookingCode}
             </p>
             <p className="text-[11px] text-slate-400 mt-1 max-w-xs leading-relaxed">
               Vui lòng xuất trình mã QR này tại cổng soát vé trước giờ chiếu ít nhất 10-15 phút.

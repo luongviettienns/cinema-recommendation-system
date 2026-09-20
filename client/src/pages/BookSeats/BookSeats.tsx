@@ -13,6 +13,8 @@ import { SeatLegend } from './SeatLegend';
 import { FloatingSummaryBar } from './FloatingSummaryBar';
 import { formatFullDate } from '../../utils/formatDate';
 
+import { toast } from 'sonner';
+
 export const BookSeats: React.FC = () => {
   const { showtimeId } = useParams<{ showtimeId: string }>();
   const navigate = useNavigate();
@@ -23,12 +25,14 @@ export const BookSeats: React.FC = () => {
     totalPrice,
     setBookingShowtime,
     toggleSeat,
+    setHoldInfo,
   } = useBooking();
 
   const [seats, setSeats] = useState<ISeat[]>([]);
   const [currentShowtime, setCurrentShowtime] = useState<IShowtime | null>(selectedShowtime);
   const [currentMovie, setCurrentMovie] = useState<IMovie | null>(selectedMovie);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmittingHold, setIsSubmittingHold] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -70,9 +74,24 @@ export const BookSeats: React.FC = () => {
     loadData();
   }, [showtimeId]);
 
-  const handleProceedToCheckout = () => {
-    if (selectedSeats.length === 0) return;
-    navigate('/checkout');
+  const handleProceedToCheckout = async () => {
+    if (selectedSeats.length === 0 || !showtimeId) return;
+    setIsSubmittingHold(true);
+    try {
+      const result = await bookingService.holdSeats(
+        showtimeId,
+        selectedSeats.map((s) => s.id)
+      );
+      setHoldInfo(result.bookingId, result.bookingCode);
+      navigate('/checkout');
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể giữ ghế, vui lòng thử lại');
+      // Reload seat matrix to reflect newly taken seats
+      const reloaded = await bookingService.getSeatsByShowtime(showtimeId);
+      setSeats(reloaded);
+    } finally {
+      setIsSubmittingHold(false);
+    }
   };
 
   if (isLoading) {

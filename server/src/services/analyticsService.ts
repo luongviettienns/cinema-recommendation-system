@@ -116,10 +116,29 @@ export class AnalyticsService {
   }
 
   /**
-   * Get recent bookings across the cinema network
+   * Get recent bookings across the cinema network with optional filter and search
    */
-  async getRecentBookings(limit = 10) {
+  async getRecentBookings(limitOrOptions: number | { limit?: number; status?: string; search?: string } = 10) {
+    const options = typeof limitOrOptions === 'number' ? { limit: limitOrOptions } : limitOrOptions;
+    const limit = options.limit ?? 20;
+
+    const where: any = {};
+    if (options.status && options.status !== 'ALL') {
+      where.status = options.status;
+    }
+
+    if (options.search && options.search.trim()) {
+      const q = options.search.trim();
+      where.OR = [
+        { bookingCode: { contains: q } },
+        { user: { name: { contains: q } } },
+        { user: { email: { contains: q } } },
+        { showtime: { movie: { title: { contains: q } } } },
+      ];
+    }
+
     const bookings = await prisma.booking.findMany({
+      where,
       take: limit,
       orderBy: { createdAt: 'desc' },
       include: {

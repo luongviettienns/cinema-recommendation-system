@@ -11,10 +11,20 @@ import { CountdownTimer } from './CountdownTimer';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/Button';
 
+import { paymentService } from '../../services/paymentService';
+
 export const Checkout: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { selectedMovie, selectedShowtime, selectedSeats, totalPrice, clearBooking } = useBooking();
+  const {
+    selectedMovie,
+    selectedShowtime,
+    selectedSeats,
+    totalPrice,
+    bookingId,
+    bookingCode: contextBookingCode,
+    clearBooking,
+  } = useBooking();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExpired, setIsExpired] = useState(false);
@@ -22,8 +32,8 @@ export const Checkout: React.FC = () => {
 
   // Generate a stable booking code for this checkout session
   const bookingCode = useMemo(() => {
-    return `CL-${Math.floor(100000 + Math.random() * 900000)}`;
-  }, []);
+    return contextBookingCode || `CL-${Math.floor(100000 + Math.random() * 900000)}`;
+  }, [contextBookingCode]);
 
   // Redirect if accessed directly with no seats selected
   if (!selectedMovie || !selectedShowtime || selectedSeats.length === 0) {
@@ -46,13 +56,24 @@ export const Checkout: React.FC = () => {
     setIsSubmitting(true);
     setErrorMessage(null);
     try {
-      const booking = await bookingService.createBooking({
-        userId: user?.id || 'guest-user',
-        showtimeId: selectedShowtime.id,
-        seats: selectedSeats.map((s) => s.seatNumber),
-        totalAmount: totalPrice,
-        paymentMethod: 'vietqr',
-      });
+      let finalBookingId = bookingId;
+      let finalBookingCode = bookingCode;
+
+      if (bookingId) {
+        // Real Backend Flow: Confirm via sandbox webhook on backend
+        await paymentService.confirmSandboxPayment(bookingId);
+      } else {
+        // Mock fallback
+        const booking = await bookingService.createBooking({
+          userId: user?.id || 'guest-user',
+          showtimeId: selectedShowtime.id,
+          seats: selectedSeats.map((s) => s.seatNumber),
+          totalAmount: totalPrice,
+          paymentMethod: 'vietqr',
+        });
+        finalBookingId = booking.id;
+        finalBookingCode = booking.bookingCode;
+      }
 
       // Fire confetti celebration effect
       confetti({
@@ -62,11 +83,11 @@ export const Checkout: React.FC = () => {
       });
 
       toast.success('Thanh toán thành công!', {
-        description: `Mã đặt vé của bạn là ${booking.bookingCode}. Đang chuyển đến vé điện tử...`,
+        description: `Mã đặt vé của bạn là ${finalBookingCode}. Đang chuyển đến vé điện tử...`,
       });
 
       clearBooking();
-      navigate(`/receipts?bookingId=${booking.id}`);
+      navigate(`/receipts?bookingId=${finalBookingId}`);
     } catch (err: any) {
       const msg = err.message || 'Thanh toán thất bại, vui lòng thử lại';
       setErrorMessage(msg);

@@ -117,6 +117,60 @@ export const authService = {
     return user;
   },
 
+  async refreshToken(token: string) {
+    if (!token) {
+      const error: any = new Error('Refresh token không được để trống');
+      error.statusCode = 400;
+      error.code = 'REFRESH_TOKEN_REQUIRED';
+      throw error;
+    }
+
+    const refreshSecret = process.env.JWT_REFRESH_SECRET || 'cinelight-refresh-super-secret-key-2026-abc';
+    let decoded: any;
+    try {
+      decoded = jwt.verify(token, refreshSecret);
+    } catch (err: any) {
+      const error: any = new Error('Refresh token không hợp lệ hoặc đã hết hạn');
+      error.statusCode = 401;
+      error.code = 'INVALID_REFRESH_TOKEN';
+      throw error;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        avatar: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user || !user.isActive) {
+      const error: any = new Error('Tài khoản không tồn tại hoặc đã bị vô hiệu hóa');
+      error.statusCode = 401;
+      error.code = 'USER_INACTIVE_OR_NOT_FOUND';
+      throw error;
+    }
+
+    const safeUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      avatar: user.avatar,
+      createdAt: user.createdAt,
+    };
+
+    const tokens = this.generateTokens(safeUser);
+    return { user: safeUser, ...tokens };
+  },
+
   generateTokens(user: { id: string; email: string; name: string; role: Role }) {
     const accessSecret = process.env.JWT_ACCESS_SECRET || 'cinelight-access-super-secret-key-2026-xyz';
     const refreshSecret = process.env.JWT_REFRESH_SECRET || 'cinelight-refresh-super-secret-key-2026-abc';

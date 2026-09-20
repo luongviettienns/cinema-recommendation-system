@@ -91,8 +91,10 @@ export class AdminController {
 
   async getRecentBookings(req: Request, res: Response, next: NextFunction) {
     try {
-      const limit = req.query.limit ? Number(req.query.limit) : 10;
-      const bookings = await analyticsService.getRecentBookings(limit);
+      const limit = req.query.limit ? Number(req.query.limit) : 20;
+      const status = req.query.status as string | undefined;
+      const search = req.query.search as string | undefined;
+      const bookings = await analyticsService.getRecentBookings({ limit, status, search });
       res.status(200).json({ success: true, data: bookings });
     } catch (error) {
       next(error);

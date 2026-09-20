@@ -19,6 +19,9 @@ export interface IBooking {
   refundStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   refundReason?: string;
   adminNote?: string;
+  ticketCode?: string;
+  ticketQrCode?: string;
+  ticketIsUsed?: boolean;
 }
 
 export interface ICreateBookingInput {

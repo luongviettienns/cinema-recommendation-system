@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   Ticket, 
@@ -11,7 +11,8 @@ import {
   Clock, 
   Play,
   Plus,
-  ArrowUpRight
+  ArrowUpRight,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { DashboardOverview } from './DashboardOverview';
@@ -19,7 +20,9 @@ import { MovieManagement } from './MovieManagement';
 import { ShowtimeManagement } from './ShowtimeManagement';
 import { StaffManagement } from './StaffManagement';
 import { RefundManagement } from './RefundManagement';
-import { RotateCcw } from 'lucide-react';
+import { apiRequest, USE_MOCK } from '../../services/api';
+import { cinemaService } from '../../services/cinemaService';
+import { ICinema } from '../../types/cinema';
 
 interface IRecentBooking {
   id: string;
@@ -43,7 +46,7 @@ export const AdminDashboard: React.FC = () => {
   const [bookingFilter, setBookingFilter] = useState('');
 
   // Recent bookings list for Bookings tab
-  const [recentBookings] = useState<IRecentBooking[]>([
+  const [recentBookings, setRecentBookings] = useState<IRecentBooking[]>([
     {
       id: 'b-1',
       code: 'CL-839210',
@@ -115,6 +118,47 @@ export const AdminDashboard: React.FC = () => {
       createdAt: '3 giờ trước',
     },
   ]);
+
+  const [realCinemas, setRealCinemas] = useState<ICinema[]>([]);
+
+  useEffect(() => {
+    if (activeTab === 'bookings' && !USE_MOCK) {
+      apiRequest<any[]>('/v1/admin/bookings?limit=50')
+        .then((data) => {
+          if (Array.isArray(data) && data.length > 0) {
+            setRecentBookings(
+              data.map((b) => ({
+                id: b.id,
+                code: b.bookingCode,
+                customerName: b.user?.name || 'Khách Vãng Lai',
+                customerEmail: b.user?.email || 'N/A',
+                movieTitle: b.showtime?.movie?.title || 'Phim Chiếu Rạp',
+                cinemaName: b.showtime?.room?.cinema?.name || 'CineLight Cinema',
+                roomName: b.showtime?.room?.name || 'Phòng chiếu',
+                showtime: b.showtime?.startTime
+                  ? `${new Date(b.showtime.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${new Date(b.showtime.startTime).toLocaleDateString('vi-VN')}`
+                  : 'N/A',
+                seats: Array.isArray(b.bookingSeats) ? b.bookingSeats.map((bs: any) => bs.seat?.seatNumber || '') : [],
+                totalAmount: b.totalAmount,
+                status: b.ticket?.isUsed ? 'CHECKED_IN' : (b.status === 'PAID' ? 'PAID' : (b.status === 'HOLDING' ? 'PENDING' : 'CANCELLED')),
+                createdAt: new Date(b.createdAt).toLocaleDateString('vi-VN'),
+              }))
+            );
+          }
+        })
+        .catch((err) => console.warn('Fetch admin bookings failed, using fallback', err));
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'cinemas') {
+      cinemaService.getCinemas().then((list) => {
+        if (list && list.length > 0) {
+          setRealCinemas(list);
+        }
+      });
+    }
+  }, [activeTab]);
 
   const filteredBookings = recentBookings.filter(
     (b) =>
@@ -356,29 +400,38 @@ export const AdminDashboard: React.FC = () => {
       {/* Tab 5: Cinemas & Rooms */}
       {activeTab === 'cinemas' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            {
-              name: 'CineLight Landmark 81',
-              city: 'TP. Hồ Chí Minh',
-              address: 'Tầng B1, Vincom Landmark 81, P. 22, Q. Bình Thạnh',
-              rooms: ['Phòng 01 - IMAX Laser (80 ghế)', 'Phòng 02 - Dolby Atmos (80 ghế)', 'Phòng 03 - 2D Digital (80 ghế)'],
-              totalSeats: 240,
-            },
-            {
-              name: 'CineLight Quận 1',
-              city: 'TP. Hồ Chí Minh',
-              address: 'Tầng 3, Vincom Center Đồng Khởi, Q. 1',
-              rooms: ['Phòng 01 - IMAX Laser (80 ghế)', 'Phòng 02 - Dolby Atmos (80 ghế)', 'Phòng 03 - 2D Digital (80 ghế)'],
-              totalSeats: 240,
-            },
-            {
-              name: 'CineLight Cầu Giấy',
-              city: 'Hà Nội',
-              address: 'Tầng 4, Vincom Center Trần Duy Hưng, Cầu Giấy',
-              rooms: ['Phòng 01 - IMAX Laser (80 ghế)', 'Phòng 02 - Dolby Atmos (80 ghế)', 'Phòng 03 - 2D Digital (80 ghế)'],
-              totalSeats: 240,
-            },
-          ].map((cinema) => (
+          {(realCinemas.length > 0
+            ? realCinemas.map((c) => ({
+                name: c.name,
+                city: c.region,
+                address: c.address,
+                rooms: ['Phòng 01 - IMAX Laser (80 ghế)', 'Phòng 02 - Dolby Atmos (80 ghế)', 'Phòng 03 - 2D Digital (80 ghế)'],
+                totalSeats: c.totalSeats || 240,
+              }))
+            : [
+                {
+                  name: 'CineLight Landmark 81',
+                  city: 'TP. Hồ Chí Minh',
+                  address: 'Tầng B1, Vincom Landmark 81, P. 22, Q. Bình Thạnh',
+                  rooms: ['Phòng 01 - IMAX Laser (80 ghế)', 'Phòng 02 - Dolby Atmos (80 ghế)', 'Phòng 03 - 2D Digital (80 ghế)'],
+                  totalSeats: 240,
+                },
+                {
+                  name: 'CineLight Quận 1',
+                  city: 'TP. Hồ Chí Minh',
+                  address: 'Tầng 3, Vincom Center Đồng Khởi, Q. 1',
+                  rooms: ['Phòng 01 - IMAX Laser (80 ghế)', 'Phòng 02 - Dolby Atmos (80 ghế)', 'Phòng 03 - 2D Digital (80 ghế)'],
+                  totalSeats: 240,
+                },
+                {
+                  name: 'CineLight Cầu Giấy',
+                  city: 'Hà Nội',
+                  address: 'Tầng 4, Vincom Center Trần Duy Hưng, Cầu Giấy',
+                  rooms: ['Phòng 01 - IMAX Laser (80 ghế)', 'Phòng 02 - Dolby Atmos (80 ghế)', 'Phòng 03 - 2D Digital (80 ghế)'],
+                  totalSeats: 240,
+                },
+              ]
+          ).map((cinema) => (
             <div key={cinema.name} className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-sm space-y-4">
               <div className="flex items-start justify-between">
                 <div>

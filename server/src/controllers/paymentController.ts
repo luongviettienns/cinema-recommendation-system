@@ -58,6 +58,29 @@ export class PaymentController {
       next(error);
     }
   }
+
+  async sandboxConfirm(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { bookingId } = req.body;
+      if (!bookingId) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Vui lòng cung cấp bookingId',
+          },
+        });
+      }
+
+      const result = await paymentService.sandboxConfirm(bookingId);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const paymentController = new PaymentController();
