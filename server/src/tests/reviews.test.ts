@@ -63,5 +63,34 @@ describe('Movie Reviews API (/api/v1/movies/:id/reviews)', () => {
 
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('INVALID_RATING');
+  });
+
+  it('POST /api/v1/movies/:id/reviews - should reject NaN or non-number rating', async () => {
+    const res = await request(app)
+      .post(`/api/v1/movies/${movieId}/reviews`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        rating: 'invalid-rating',
+        comment: 'Đánh giá với số điểm không hợp lệ',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('INVALID_RATING');
+  });
+
+  it('POST /api/v1/movies/:id/reviews - should reject comments shorter than 10 characters', async () => {
+    const res = await request(app)
+      .post(`/api/v1/movies/${movieId}/reviews`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        rating: 8,
+        comment: 'Quá ngắn',
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('INVALID_COMMENT_LENGTH');
   });
 });

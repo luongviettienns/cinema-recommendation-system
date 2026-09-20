@@ -204,30 +204,56 @@ export const movieService = {
   },
 
   async createMovieReview(movieId: string, userId: string, rating: number, comment: string) {
-    if (rating < 1 || rating > 10) {
-      const err: any = new Error('Điểm đánh giá phải từ 1 đến 10');
+    const numericRating = Number(rating);
+    if (isNaN(numericRating) || !Number.isInteger(numericRating) || numericRating < 1 || numericRating > 10) {
+      const err: any = new Error('Điểm đánh giá phải là số nguyên từ 1 đến 10');
       err.statusCode = 400;
       err.code = 'INVALID_RATING';
       throw err;
     }
 
-    const review = await prisma.review.create({
-      data: {
-        movieId,
-        userId,
-        rating,
-        comment,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            avatar: true,
+    const trimmedComment = (comment || '').trim();
+    if (trimmedComment.length < 10 || trimmedComment.length > 1000) {
+      const err: any = new Error('Nội dung nhận xét phải từ 10 đến 1000 ký tự');
+      err.statusCode = 400;
+      err.code = 'INVALID_COMMENT_LENGTH';
+      throw err;
+    }
+
+    // Upsert review: each user has at most one review per movie
+    const existingReview = await prisma.review.findFirst({
+      where: { movieId, userId },
+    });
+
+    let review;
+    if (existingReview) {
+      review = await prisma.review.update({
+        where: { id: existingReview.id },
+        data: {
+          rating: numericRating,
+          comment: trimmedComment,
+        },
+        include: {
+          user: {
+            select: { id: true, name: true, avatar: true },
           },
         },
-      },
-    });
+      });
+    } else {
+      review = await prisma.review.create({
+        data: {
+          movieId,
+          userId,
+          rating: numericRating,
+          comment: trimmedComment,
+        },
+        include: {
+          user: {
+            select: { id: true, name: true, avatar: true },
+          },
+        },
+      });
+    }
 
     // Recalculate average rating of movie
     const aggregations = await prisma.review.aggregate({

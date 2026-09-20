@@ -98,6 +98,30 @@ describe('Payment & Webhook Signature API (/api/v1/payments)', () => {
     expect(res.body.error.code).toBe('INVALID_WEBHOOK_SIGNATURE');
   });
 
+  it('POST /api/v1/payments/webhook - should reject when amount does not match booking totalAmount (400 Bad Request)', async () => {
+    const transactionId = `TXN-FAKE-AMOUNT-${Date.now()}`;
+    const forgedAmount = 1000; // 1000 VND instead of real amount
+    const rawSignatureData = `${bookingCode}|${transactionId}|${forgedAmount}`;
+    const validSignature = crypto
+      .createHmac('sha512', WEBHOOK_SECRET)
+      .update(rawSignatureData)
+      .digest('hex');
+
+    const res = await request(app)
+      .post('/api/v1/payments/webhook')
+      .send({
+        bookingCode,
+        transactionId,
+        amount: forgedAmount,
+        paymentMethod: 'VIETQR',
+        signature: validSignature,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('PAYMENT_AMOUNT_MISMATCH');
+  });
+
   it('POST /api/v1/payments/webhook - should verify HMAC-SHA512 signature, mark booking PAID, and issue Ticket', async () => {
     const transactionId = `TXN-REAL-${Date.now()}`;
     // Construct signature string: bookingCode|transactionId|amount
@@ -158,5 +182,43 @@ describe('Payment & Webhook Signature API (/api/v1/payments)', () => {
     expect(res.body.data.paymentStatus).toBe('SUCCESS');
     expect(res.body.data.bookingStatus).toBe('PAID');
     expect(res.body.data.ticket).toBeDefined();
+  });
+
+  it('POST /api/v1/payments/webhook - should reject payment for CANCELLED booking (400 Bad Request)', async () => {
+    // Create a dummy cancelled booking
+    const cancelledBooking = await prisma.booking.create({
+      data: {
+        bookingCode: `CAN-${Date.now()}`,
+        userId: (await prisma.user.findFirst({ where: { email: 'demo@cinema.vn' } }))!.id,
+        showtimeId,
+        status: 'CANCELLED',
+        totalAmount: 100000,
+        expiresAt: new Date(Date.now() - 60000),
+      },
+    });
+
+    const transactionId = `TXN-CANCEL-${Date.now()}`;
+    const rawSignatureData = `${cancelledBooking.bookingCode}|${transactionId}|100000`;
+    const validSignature = crypto
+      .createHmac('sha512', WEBHOOK_SECRET)
+      .update(rawSignatureData)
+      .digest('hex');
+
+    const res = await request(app)
+      .post('/api/v1/payments/webhook')
+      .send({
+        bookingCode: cancelledBooking.bookingCode,
+        transactionId,
+        amount: 100000,
+        paymentMethod: 'VIETQR',
+        signature: validSignature,
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error.code).toBe('BOOKING_ALREADY_CANCELLED');
+
+    // Clean up
+    await prisma.booking.delete({ where: { id: cancelledBooking.id } });
   });
 });

@@ -404,6 +404,14 @@ export class RefundService {
         throw createError('Không tìm thấy giao dịch đặt vé', 404, 'BOOKING_NOT_FOUND');
       }
 
+      if (booking.status !== BookingStatus.PAID && booking.status !== BookingStatus.REFUND_PENDING) {
+        throw createError(
+          `Chỉ có thể hủy trực tiếp các đơn đặt vé đã thanh toán (PAID) hoặc đang chờ duyệt (REFUND_PENDING). Trạng thái hiện tại: ${booking.status}`,
+          400,
+          'INVALID_BOOKING_STATUS'
+        );
+      }
+
       // Tạo hoặc cập nhật RefundRequest -> APPROVED
       let refund;
       if (booking.refundRequest) {

@@ -4,7 +4,9 @@ import { assertCinemaScope } from './staffAuthorization';
 
 export class TicketService {
   private secret =
-    process.env.PAYMENT_WEBHOOK_SECRET || 'cinelight-payment-secret-key-2026';
+    process.env.TICKET_QR_SECRET ||
+    process.env.HMAC_QR_SECRET ||
+    'cinelight-ticket-qr-secret-2026-distinct';
 
   /**
    * Get all tickets belonging to logged-in customer
@@ -209,17 +211,19 @@ export class TicketService {
 
     assertCinemaScope(allowedCinemaId, ticket.booking.showtime.room.cinema.id);
 
-    // Double check-in prevention
-    if (ticket.isUsed) {
-      const scannedTime = ticket.scannedAt
-        ? ticket.scannedAt.toLocaleTimeString('vi-VN')
-        : 'trước đó';
-      const staffName = ticket.staff ? ticket.staff.name : 'Nhân viên khác';
+    // Verify showtime date has not passed in previous days
+    const now = new Date();
+    const showtime = ticket.booking.showtime;
+    const showtimeDate = new Date(showtime.startTime);
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    if (showtimeDate < startOfToday) {
       const err = new Error(
-        `Vé này ĐÃ ĐƯỢC SỬ DỤNG lúc ${scannedTime} bởi ${staffName}. Không thể soát vé lại!`
+        `Suất chiếu này diễn ra vào ngày ${showtimeDate.toLocaleDateString('vi-VN')} trong quá khứ. Vé không còn hiệu lực để vào rạp.`
       );
-      (err as any).statusCode = 409;
-      (err as any).code = 'TICKET_ALREADY_USED';
+      (err as any).statusCode = 400;
+      (err as any).code = 'SHOWTIME_EXPIRED';
       throw err;
     }
 
@@ -231,14 +235,38 @@ export class TicketService {
       throw err;
     }
 
-    // Mark ticket as used and record audit log
-    const updatedTicket = await prisma.ticket.update({
-      where: { id: ticket.id },
+    // Atomic update: only succeeds if isUsed is currently false
+    const updateResult = await prisma.ticket.updateMany({
+      where: {
+        id: ticket.id,
+        isUsed: false,
+      },
       data: {
         isUsed: true,
-        scannedAt: new Date(),
+        scannedAt: now,
         scannedByStaffId: staffUserId,
       },
+    });
+
+    if (updateResult.count === 0) {
+      const freshTicket = await prisma.ticket.findUnique({
+        where: { id: ticket.id },
+        include: { staff: { select: { id: true, name: true } } },
+      });
+      const scannedTime = freshTicket?.scannedAt
+        ? freshTicket.scannedAt.toLocaleTimeString('vi-VN')
+        : 'trước đó';
+      const staffName = freshTicket?.staff ? freshTicket.staff.name : 'Nhân viên khác';
+      const err = new Error(
+        `Vé này ĐÃ ĐƯỢC SỬ DỤNG lúc ${scannedTime} bởi ${staffName}. Không thể soát vé lại!`
+      );
+      (err as any).statusCode = 409;
+      (err as any).code = 'TICKET_ALREADY_USED';
+      throw err;
+    }
+
+    const updatedTicket = await prisma.ticket.findUnique({
+      where: { id: ticket.id },
       include: {
         staff: { select: { id: true, name: true } },
       },
@@ -246,10 +274,10 @@ export class TicketService {
 
     return {
       message: 'Soát vé thành công! Mời khách vào phòng chiếu.',
-      ticketCode: updatedTicket.ticketCode,
-      isUsed: updatedTicket.isUsed,
-      scannedAt: updatedTicket.scannedAt,
-      scannedByStaff: updatedTicket.staff?.name,
+      ticketCode: updatedTicket?.ticketCode || ticket.ticketCode,
+      isUsed: updatedTicket?.isUsed ?? true,
+      scannedAt: updatedTicket?.scannedAt || now,
+      scannedByStaff: updatedTicket?.staff?.name,
       movieTitle: ticket.booking.showtime.movie.title,
       cinemaName: ticket.booking.showtime.room.cinema.name,
       roomName: ticket.booking.showtime.room.name,

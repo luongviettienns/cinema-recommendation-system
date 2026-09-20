@@ -9,6 +9,7 @@ coverage/
 
 # Project documentation is maintained locally only
 *.md
+!README.md
 docs/
 pro-setup/
 

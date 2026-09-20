@@ -35,10 +35,36 @@ export class BookingService {
       throw err;
     }
 
+    // Check if showtime has already started
+    if (new Date(showtime.startTime) <= new Date()) {
+      const err = new Error('Suất chiếu này đã bắt đầu hoặc đã qua. Không thể giữ ghế.');
+      (err as any).statusCode = 400;
+      (err as any).code = 'SHOWTIME_ALREADY_STARTED';
+      throw err;
+    }
+
     // Run transaction with serializable-level checks
     try {
       return await prisma.$transaction(async (tx) => {
       const now = new Date();
+
+      // Check max concurrent holds per user
+      const activeUserHolds = await tx.booking.count({
+        where: {
+          userId,
+          status: BookingStatus.HOLDING,
+          expiresAt: { gt: now },
+        },
+      });
+
+      if (activeUserHolds >= 3) {
+        const err = new Error(
+          'Bạn đang có 3 đơn giữ ghế chưa thanh toán. Vui lòng hoàn tất thanh toán hoặc hủy bớt trước khi tạo đơn mới.'
+        );
+        (err as any).statusCode = 400;
+        (err as any).code = 'TOO_MANY_HOLDING_BOOKINGS';
+        throw err;
+      }
 
       // 1. Lazy cleanup: Expire any stale holds for this showtime
       const expiredBookings = await tx.booking.findMany({
@@ -217,6 +243,20 @@ export class BookingService {
       const err = new Error('Không thể hủy giao dịch đã thanh toán thành công');
       (err as any).statusCode = 400;
       (err as any).code = 'CANNOT_CANCEL_PAID_BOOKING';
+      throw err;
+    }
+
+    if (booking.status === BookingStatus.REFUND_PENDING) {
+      const err = new Error('Đơn đặt vé đang trong quá trình xét duyệt hoàn tiền. Không thể tự hủy.');
+      (err as any).statusCode = 400;
+      (err as any).code = 'BOOKING_REFUND_PENDING';
+      throw err;
+    }
+
+    if (booking.status !== BookingStatus.HOLDING) {
+      const err = new Error('Chỉ có thể hủy đơn đặt vé đang ở trạng thái giữ chỗ (HOLDING)');
+      (err as any).statusCode = 400;
+      (err as any).code = 'INVALID_BOOKING_STATUS';
       throw err;
     }
 

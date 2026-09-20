@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = 'd57f98353cd138d04009d9b056243e9e';
-const ACCESS_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkNTdmOTgzNTNjZDEzOGQwNDAwOWQ5YjA1NjI0M2U5ZSIsIm5iZiI6MTc4OTc1NTgxOS4xODksInN1YiI6IjZhYWQ4MWFiN2I3NDZhN2U1ZTAyNjZmMCIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.zD2dsYqSu39FpmGI9lf2w7RYkPTzNFV0BqTg-MYpCrc';
+const API_KEY = process.env.TMDB_API_KEY || process.env.VITE_TMDB_API_KEY || '';
+const ACCESS_TOKEN = process.env.TMDB_ACCESS_TOKEN || process.env.VITE_TMDB_ACCESS_TOKEN || '';
 
 async function fetchFromTmdb(endpoint, params = {}) {
   const url = new URL(`https://api.themoviedb.org/3/${endpoint}`);

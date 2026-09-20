@@ -103,7 +103,7 @@ export class StaffService {
       if (seat.seatType === SeatType.VIP) {
         price += 20000;
       } else if (seat.seatType === SeatType.COUPLE) {
-        price += 40000;
+        price = showtime.basePrice * 2 + 20000;
       }
       totalAmount += price;
       seatPrices.push({ seatId: seat.id, price });

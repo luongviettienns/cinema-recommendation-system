@@ -5,7 +5,11 @@ import { emailService } from './emailService';
 
 export class PaymentService {
   private webhookSecret =
-    process.env.PAYMENT_WEBHOOK_SECRET || 'cinelight-payment-secret-key-2026';
+    process.env.PAYMENT_WEBHOOK_SECRET || 'cinelight-payment-webhook-secret-2026-secure';
+  private qrSecret =
+    process.env.TICKET_QR_SECRET ||
+    process.env.HMAC_QR_SECRET ||
+    'cinelight-ticket-qr-secret-2026-distinct';
 
   /**
    * Create payment intent for booking
@@ -42,6 +46,13 @@ export class PaymentService {
       const err = new Error('Đơn đặt vé này đã được thanh toán thành công');
       (err as any).statusCode = 400;
       (err as any).code = 'BOOKING_ALREADY_PAID';
+      throw err;
+    }
+
+    if (booking.status === BookingStatus.CANCELLED) {
+      const err = new Error('Đơn đặt vé này đã bị hủy bỏ. Vui lòng đặt lại vé');
+      (err as any).statusCode = 400;
+      (err as any).code = 'BOOKING_ALREADY_CANCELLED';
       throw err;
     }
 
@@ -165,10 +176,48 @@ export class PaymentService {
       };
     }
 
-    // 4. Update payment, booking, and issue electronic Ticket in transaction
-    const result = await prisma.$transaction(async (tx) => {
-      const now = new Date();
+    // 4. Amount verification: webhook amount must match booking total
+    if (amount !== booking.totalAmount) {
+      const err = new Error(
+        `Số tiền thanh toán (${amount} VNĐ) không khớp với giá trị đơn hàng (${booking.totalAmount} VNĐ)`
+      );
+      (err as any).statusCode = 400;
+      (err as any).code = 'PAYMENT_AMOUNT_MISMATCH';
+      throw err;
+    }
 
+    // 5. Booking Status & Expiration checks
+    const now = new Date();
+    if (booking.status === BookingStatus.CANCELLED) {
+      const err = new Error('Đơn đặt vé này đã bị hủy bỏ. Không thể phát hành vé.');
+      (err as any).statusCode = 400;
+      (err as any).code = 'BOOKING_ALREADY_CANCELLED';
+      throw err;
+    }
+
+    if (booking.status !== BookingStatus.HOLDING) {
+      const err = new Error(`Trạng thái đơn hàng không hợp lệ để thanh toán: ${booking.status}`);
+      (err as any).statusCode = 400;
+      (err as any).code = 'INVALID_BOOKING_STATUS';
+      throw err;
+    }
+
+    if (booking.expiresAt <= now) {
+      // Lazy release seats
+      await prisma.bookingSeat.deleteMany({ where: { bookingId: booking.id } });
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.CANCELLED },
+      });
+
+      const err = new Error('Thời gian giữ chỗ của đơn hàng đã hết hạn. Ghế đã được giải phóng.');
+      (err as any).statusCode = 400;
+      (err as any).code = 'BOOKING_EXPIRED';
+      throw err;
+    }
+
+    // 6. Update payment, booking, and issue electronic Ticket in transaction
+    const result = await prisma.$transaction(async (tx) => {
       // Update payment
       await tx.payment.upsert({
         where: { bookingId: booking.id },
@@ -196,30 +245,43 @@ export class PaymentService {
         data: { status: BookingStatus.PAID },
       });
 
-      // Generate Ticket with HMAC-signed QR string
-      const ticketCode = `TK-${Math.floor(100000 + Math.random() * 900000)}`;
-      const qrPayload = JSON.stringify({
-        ticketCode,
-        bookingCode: booking.bookingCode,
-        showtimeId: booking.showtimeId,
-        userId: booking.userId,
-        issuedAt: now.toISOString(),
-      });
+      // Generate Ticket with 8-character uppercase alphanumeric code & collision retry
+      let ticket: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const randHex = crypto.randomBytes(4).toString('hex').toUpperCase();
+        const ticketCode = `TK-${randHex}`;
 
-      const qrSignature = crypto
-        .createHmac('sha256', this.webhookSecret)
-        .update(qrPayload)
-        .digest('hex');
-
-      const qrCode = `${Buffer.from(qrPayload).toString('base64')}.${qrSignature}`;
-
-      const ticket = await tx.ticket.create({
-        data: {
-          bookingId: booking.id,
+        const qrPayload = JSON.stringify({
           ticketCode,
-          qrCode,
-        },
-      });
+          bookingCode: booking.bookingCode,
+          showtimeId: booking.showtimeId,
+          userId: booking.userId,
+          issuedAt: now.toISOString(),
+        });
+
+        const qrSignature = crypto
+          .createHmac('sha256', this.qrSecret)
+          .update(qrPayload)
+          .digest('hex');
+
+        const qrCode = `${Buffer.from(qrPayload).toString('base64')}.${qrSignature}`;
+
+        try {
+          ticket = await tx.ticket.create({
+            data: {
+              bookingId: booking.id,
+              ticketCode,
+              qrCode,
+            },
+          });
+          break;
+        } catch (err: any) {
+          if (err.code === 'P2002' && attempt < 2) {
+            continue; // retry with fresh ticketCode
+          }
+          throw err;
+        }
+      }
 
       return {
         success: true,
