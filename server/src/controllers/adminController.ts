@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { Role } from '@prisma/client';
 import { z } from 'zod';
 import { analyticsService } from '../services/analyticsService';
+import { excelExportService } from '../services/excelExportService';
 import {
   CreateStaffDTO,
   staffManagementService,
@@ -54,6 +55,35 @@ export class AdminController {
     try {
       const data = await analyticsService.getDashboardSummary();
       res.status(200).json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async exportRevenueExcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const range = (req.query.range as any) || '7days';
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+
+      const buffer = await excelExportService.generateRevenueWorkbook({
+        range,
+        startDate,
+        endDate,
+      });
+
+      const now = new Date();
+      const dateString = now.toISOString().slice(0, 10).replace(/-/g, '');
+      const timeString = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const filename = `CineLight_BaoCaoDoanhThu_${dateString}_${timeString}.xlsx`;
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', buffer.length);
+      res.status(200).send(buffer);
     } catch (error) {
       next(error);
     }

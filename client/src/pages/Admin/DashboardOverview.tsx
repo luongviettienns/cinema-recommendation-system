@@ -11,10 +11,12 @@ import {
   Sparkles,
   ArrowUpRight,
   RefreshCw,
-  Users
+  Users,
+  FileSpreadsheet
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { toast } from 'sonner';
+import { analyticsExportService } from '../../services/analyticsExportService';
 
 interface IDailyRevenue {
   day: string;
@@ -98,6 +100,7 @@ interface DashboardOverviewProps {
 export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigateToTab }) => {
   const [timeRange, setTimeRange] = useState<'today' | '7days' | '30days'>('7days');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const maxRevenue = Math.max(...REVENUE_7_DAYS.map((d) => d.revenue));
 
@@ -107,6 +110,17 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate
       setIsRefreshing(false);
       toast.success('Đã đồng bộ số liệu thời gian thực từ Database!');
     }, 450);
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setIsExporting(true);
+      await analyticsExportService.exportRevenueExcel(timeRange);
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể xuất file báo cáo Excel.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -143,16 +157,29 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({ onNavigate
           </div>
         </div>
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRefresh}
-          isLoading={isRefreshing}
-          className="font-bold border-slate-200 cursor-pointer"
-          leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />}
-        >
-          Làm Mới Số Liệu
-        </Button>
+        <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportExcel}
+            isLoading={isExporting}
+            className="font-bold border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100/80 cursor-pointer shadow-xs"
+            leftIcon={<FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />}
+          >
+            Xuất Báo Cáo Excel
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            isLoading={isRefreshing}
+            className="font-bold border-slate-200 cursor-pointer"
+            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />}
+          >
+            Làm Mới Số Liệu
+          </Button>
+        </div>
       </div>
 
       {/* KPI Cards Row */}
