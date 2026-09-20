@@ -24,3 +24,14 @@ export interface IMovie {
   isHot?: boolean;
   isNowShowing: boolean;
 }
+
+export interface IReview {
+  id: string;
+  movieId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  rating: number; // 1 - 10
+  comment: string;
+  createdAt: string;
+}

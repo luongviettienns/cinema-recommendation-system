@@ -13,6 +13,7 @@ import { formatCurrency } from '../../utils/formatCurrency';
 import { TagBadgeWithTooltip } from '../../components/common/TagBadgeWithTooltip';
 import { TagGlossaryModal } from '../../components/common/TagGlossaryModal';
 import { HelpCircle } from 'lucide-react';
+import { MovieReviews } from './MovieReviews';
 
 export const ShowDetails: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -138,10 +139,14 @@ export const ShowDetails: React.FC = () => {
                 {movie.formats.map((fmt) => (
                   <TagBadgeWithTooltip key={fmt} code={fmt} size="sm" onOpenGlossary={() => setIsGlossaryOpen(true)} />
                 ))}
-                <span className="flex items-center gap-1 text-xs font-bold text-slate-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                <a
+                  href="#reviews"
+                  className="flex items-center gap-1 text-xs font-bold text-slate-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-md transition-colors"
+                  title="Xem đánh giá từ khán giả"
+                >
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                   <span>{movie.rating}/10</span>
-                </span>
+                </a>
                 <span className="flex items-center gap-1 text-xs text-slate-500 font-medium">
                   <Clock className="w-3.5 h-3.5" />
                   <span>{movie.duration} phút</span>
@@ -294,6 +299,18 @@ export const ShowDetails: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Movie Reviews & Community Ratings Section */}
+      <div id="reviews">
+        <MovieReviews
+          movieId={movie.id}
+          movieTitle={movie.title}
+          initialRating={movie.rating}
+          onRatingUpdated={(newRating) => {
+            setMovie((prev) => (prev ? { ...prev, rating: newRating } : prev));
+          }}
+        />
       </div>
 
       {/* Trailer Modal */}
