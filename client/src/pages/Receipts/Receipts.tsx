@@ -18,6 +18,31 @@ export const Receipts: React.FC = () => {
   const [selectedTicket, setSelectedTicket] = useState<IBooking | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const handleRefundRequested = (bookingId: string, reason: string) => {
+    setBookings((prev) =>
+      prev.map((b) =>
+        b.id === bookingId
+          ? {
+              ...b,
+              status: 'REFUND_PENDING',
+              refundStatus: 'PENDING',
+              refundReason: reason,
+            }
+          : b,
+      ),
+    );
+    setSelectedTicket((prev) =>
+      prev && prev.id === bookingId
+        ? {
+            ...prev,
+            status: 'REFUND_PENDING',
+            refundStatus: 'PENDING',
+            refundReason: reason,
+          }
+        : prev,
+    );
+  };
+
   useEffect(() => {
     bookingService.getUserBookings().then((data) => {
       setBookings(data);
@@ -85,7 +110,10 @@ export const Receipts: React.FC = () => {
           {/* Active / Highlighted Ticket View (Left) */}
           <div className="lg:col-span-7">
             {selectedTicket ? (
-              <PerforatedTicket booking={selectedTicket} />
+              <PerforatedTicket
+                booking={selectedTicket}
+                onRefundRequested={handleRefundRequested}
+              />
             ) : (
               <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 text-slate-400">
                 Chọn một vé bên danh sách để xem chi tiết
@@ -142,9 +170,23 @@ export const Receipts: React.FC = () => {
                       <span className="text-xs font-extrabold text-slate-900 block">
                         {formatCurrency(b.totalAmount)}
                       </span>
-                      <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-1">
-                        Thành công
-                      </span>
+                      {b.status === 'REFUND_PENDING' || b.refundStatus === 'PENDING' ? (
+                        <span className="text-[10px] text-amber-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full inline-block mt-1">
+                          Chờ hoàn tiền
+                        </span>
+                      ) : b.status === 'CANCELLED' || b.refundStatus === 'APPROVED' ? (
+                        <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full inline-block mt-1">
+                          Đã hoàn tiền
+                        </span>
+                      ) : b.refundStatus === 'REJECTED' ? (
+                        <span className="text-[10px] text-rose-700 font-bold bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full inline-block mt-1">
+                          Từ chối hoàn
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded-full inline-block mt-1">
+                          Thành công
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -153,17 +195,17 @@ export const Receipts: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-12 text-center max-w-md mx-auto my-12 shadow-xs">
-          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+        <div className="bg-white rounded-3xl p-16 text-center border border-slate-200 shadow-sm max-w-xl mx-auto space-y-4">
+          <div className="w-16 h-16 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mx-auto">
             <Film className="w-8 h-8" />
           </div>
-          <h3 className="text-lg font-bold text-slate-900 mb-1">Chưa có vé nào được đặt</h3>
-          <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-            Bạn chưa thực hiện giao dịch mua vé nào. Hãy chọn cho mình một bộ phim bom tấn và tận hưởng trải nghiệm rạp chiếu ngay!
+          <h3 className="text-xl font-bold text-slate-900">Bạn Chưa Có Vé Nào</h3>
+          <p className="text-sm text-slate-500 max-w-sm mx-auto">
+            Hãy khám phá các siêu phẩm điện ảnh đang chiếu và đặt cho mình những vị trí ngồi đẹp nhất nhé!
           </p>
-          <Link to="/">
-            <Button variant="primary" size="md" leftIcon={<Film className="w-4 h-4" />}>
-              Khám Phá Phim Chiếu Rạp
+          <Link to="/" className="inline-block pt-2">
+            <Button variant="primary" size="md">
+              Khám Phá Phim Ngay
             </Button>
           </Link>
         </div>
@@ -171,3 +213,4 @@ export const Receipts: React.FC = () => {
     </div>
   );
 };
+

@@ -18,6 +18,8 @@ import { DashboardOverview } from './DashboardOverview';
 import { MovieManagement } from './MovieManagement';
 import { ShowtimeManagement } from './ShowtimeManagement';
 import { StaffManagement } from './StaffManagement';
+import { RefundManagement } from './RefundManagement';
+import { RotateCcw } from 'lucide-react';
 
 interface IRecentBooking {
   id: string;
@@ -35,7 +37,9 @@ interface IRecentBooking {
 }
 
 export const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'movies' | 'showtimes' | 'bookings' | 'cinemas' | 'staff'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'movies' | 'showtimes' | 'bookings' | 'cinemas' | 'staff' | 'refunds'
+  >('overview');
   const [bookingFilter, setBookingFilter] = useState('');
 
   // Recent bookings list for Bookings tab
@@ -237,6 +241,18 @@ export const AdminDashboard: React.FC = () => {
           <ShieldCheck className="w-4 h-4" />
           <span>Quản lý nhân viên</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('refunds')}
+          className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'refunds'
+              ? 'bg-rose-600 text-white shadow-md shadow-rose-200'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <RotateCcw className="w-4 h-4" />
+          <span>Duyệt Hoàn Tiền</span>
+        </button>
       </div>
 
       {/* Tab 1: Dashboard Overview */}
@@ -401,6 +417,7 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {activeTab === 'staff' && <StaffManagement />}
+      {activeTab === 'refunds' && <RefundManagement />}
     </div>
   );
 };

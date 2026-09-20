@@ -1,15 +1,79 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
-import { Film, Calendar, Clock, MapPin, Printer, CheckCircle2, Ticket } from 'lucide-react';
+import {
+  Film,
+  Calendar,
+  Clock,
+  MapPin,
+  Printer,
+  CheckCircle2,
+  Ticket,
+  RotateCcw,
+  AlertCircle,
+  Clock3,
+  X,
+} from 'lucide-react';
 import { IBooking } from '../../types/booking';
 import { formatCurrency } from '../../utils/formatCurrency';
 import { formatFullDate } from '../../utils/formatDate';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { refundService } from '../../services/refundService';
 
-export const PerforatedTicket: React.FC<{ booking: IBooking }> = ({ booking }) => {
+export const PerforatedTicket: React.FC<{
+  booking: IBooking;
+  onRefundRequested?: (bookingId: string, reason: string) => void;
+}> = ({ booking, onRefundRequested }) => {
+  const [isRefundModalOpen, setIsRefundModalOpen] = useState(false);
+  const [refundReason, setRefundReason] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Time diff calculation
+  const showtimeDate = new Date(`${booking.showDate}T${booking.showTime}:00`);
+  const diffMinutes = Math.floor((showtimeDate.getTime() - Date.now()) / (60 * 1000));
+
+  const isPendingRefund = booking.status === 'REFUND_PENDING' || booking.refundStatus === 'PENDING';
+  const isApprovedRefund = booking.status === 'CANCELLED' || booking.refundStatus === 'APPROVED';
+  const isRejectedRefund = booking.refundStatus === 'REJECTED';
+  const isPaid = (booking.paymentStatus === 'completed' || booking.status === 'PAID') && !isApprovedRefund;
+
+  // CHỈ hiển thị khi: vé PAID, suất chiếu >= 60 phút, và chưa từng gửi yêu cầu (hoặc không đang pending/approved)
+  const canRequestRefund = isPaid && !isPendingRefund && !isApprovedRefund && diffMinutes >= 60;
+
+  const handleOpenRefundModal = () => {
+    setRefundReason('');
+    setIsRefundModalOpen(true);
+  };
+
+  const handleCloseRefundModal = () => {
+    if (isSubmitting) return;
+    setIsRefundModalOpen(false);
+  };
+
+  const handleSubmitRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const reason = refundReason.trim();
+    if (reason.length < 5) {
+      toast.error('Vui lòng nhập lý do hủy vé tối thiểu 5 ký tự.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await refundService.requestRefund(booking.id, reason);
+      toast.success('Gửi yêu cầu hoàn tiền thành công!', {
+        description: 'Ban Quản Lý rạp sẽ xét duyệt yêu cầu trong vòng 24 giờ.',
+      });
+      setIsRefundModalOpen(false);
+      onRefundRequested?.(booking.id, reason);
+    } catch (err: any) {
+      toast.error(err.message || 'Không thể gửi yêu cầu hoàn tiền.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   const handlePrint = () => {
     toast.info('Đang mở hộp thoại in vé điện tử...', {
       description: 'Khuyến nghị chọn "Lưu dưới dạng PDF" hoặc in khổ dọc chuẩn.',
@@ -65,10 +129,30 @@ export const PerforatedTicket: React.FC<{ booking: IBooking }> = ({ booking }) =
                 <Badge variant="primary" size="sm">
                   {booking.format}
                 </Badge>
-                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold border border-emerald-200 inline-flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  Đã thanh toán
-                </span>
+                {isPendingRefund && (
+                  <span className="text-[11px] text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-lg font-bold border border-amber-200 inline-flex items-center gap-1">
+                    <Clock3 className="w-3 h-3 text-amber-600" />
+                    Chờ duyệt hoàn tiền
+                  </span>
+                )}
+                {isApprovedRefund && (
+                  <span className="text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-lg font-bold border border-emerald-200 inline-flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Đã hoàn tiền
+                  </span>
+                )}
+                {isRejectedRefund && (
+                  <span className="text-[11px] text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-lg font-bold border border-rose-200 inline-flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3 text-rose-600" />
+                    Từ chối hoàn tiền
+                  </span>
+                )}
+                {!isPendingRefund && !isApprovedRefund && !isRejectedRefund && (
+                  <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg font-bold border border-emerald-200 inline-flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    Đã thanh toán
+                  </span>
+                )}
               </div>
               <h3 className="text-lg font-black text-slate-900 tracking-tight leading-snug truncate">
                 {booking.movieTitle}
@@ -82,6 +166,17 @@ export const PerforatedTicket: React.FC<{ booking: IBooking }> = ({ booking }) =
               </p>
             </div>
           </div>
+
+          {/* Rejection Note if available */}
+          {isRejectedRefund && booking.adminNote && (
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3.5 text-xs text-rose-900 flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-extrabold block text-rose-950">Phản hồi từ Ban Quản Lý:</span>
+                <p className="mt-0.5 text-rose-800">{booking.adminNote}</p>
+              </div>
+            </div>
+          )}
 
           {/* Grid Information */}
           <div className="grid grid-cols-2 gap-3 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200/60 text-xs">
@@ -139,7 +234,7 @@ export const PerforatedTicket: React.FC<{ booking: IBooking }> = ({ booking }) =
       </div>
 
       {/* Action Buttons (Hidden when printing) */}
-      <div className="flex items-center gap-3 justify-center mt-6 no-print">
+      <div className="flex items-center gap-3 justify-center mt-6 no-print flex-wrap">
         <Button
           variant="outline"
           size="md"
@@ -149,7 +244,119 @@ export const PerforatedTicket: React.FC<{ booking: IBooking }> = ({ booking }) =
         >
           In Vé / Lưu PDF
         </Button>
+
+        {canRequestRefund && (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            leftIcon={<RotateCcw className="w-4 h-4 text-rose-600" />}
+            onClick={handleOpenRefundModal}
+            className="bg-white hover:bg-rose-50 border-rose-200 text-rose-600 shadow-xs hover:border-rose-300 transition-colors"
+          >
+            Yêu Cầu Hủy Vé
+          </Button>
+        )}
       </div>
+
+      {/* Refund Request Confirmation Modal */}
+      {isRefundModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="refund-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-xs animate-in fade-in"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') handleCloseRefundModal();
+          }}
+        >
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200">
+            <button
+              type="button"
+              onClick={handleCloseRefundModal}
+              className="absolute top-5 right-5 p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              aria-label="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 id="refund-modal-title" className="text-lg font-black text-slate-900 tracking-tight">
+                  Yêu Cầu Hủy Vé & Hoàn Tiền
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">Mã vé: {booking.bookingCode}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmitRefund} className="space-y-4">
+              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Phim:</span>
+                  <span className="font-extrabold text-slate-900 truncate max-w-[200px]">{booking.movieTitle}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Suất chiếu:</span>
+                  <span className="font-extrabold text-slate-900">{booking.showTime} - {formatFullDate(booking.showDate)}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-600">
+                  <span>Số tiền hoàn dự kiến:</span>
+                  <span className="font-black text-sm text-rose-600">{formatCurrency(booking.totalAmount)}</span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-900 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p className="leading-relaxed">
+                  Yêu cầu của bạn sẽ được gửi tới Ban Quản Lý rạp xét duyệt trong vòng 24 giờ. Vé sẽ tạm thời bị khóa cho đến khi có kết quả.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="refund-reason" className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Lý do hủy vé <span className="text-rose-600">*</span>
+                </label>
+                <textarea
+                  id="refund-reason"
+                  rows={3}
+                  required
+                  autoFocus
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="VD: Tôi có việc bận đột xuất, đặt nhầm suất chiếu..."
+                  className="w-full text-xs rounded-xl border border-slate-300 p-3 text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all resize-none"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">Tối thiểu 5 ký tự.</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCloseRefundModal}
+                  disabled={isSubmitting}
+                  className="rounded-xl"
+                >
+                  Hủy bỏ
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isSubmitting}
+                  className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md shadow-rose-200"
+                >
+                  Gửi Yêu Cầu Hoàn Tiền
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 };

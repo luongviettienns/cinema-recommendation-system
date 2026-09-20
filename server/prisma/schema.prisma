@@ -36,6 +36,7 @@ enum SeatType {
 enum BookingStatus {
   HOLDING
   PAID
+  REFUND_PENDING
   CANCELLED
   EXPIRED
 }
@@ -44,6 +45,13 @@ enum PaymentStatus {
   PENDING
   SUCCESS
   FAILED
+  REFUNDED
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum PaymentMethod {
@@ -66,10 +74,12 @@ model User {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  assignedCinema Cinema?   @relation("CinemaAssignedStaff", fields: [assignedCinemaId], references: [id], onDelete: SetNull)
-  bookings       Booking[]
-  reviews        Review[]
-  scannedTickets Ticket[]  @relation("StaffScannedTickets")
+  assignedCinema   Cinema?         @relation("CinemaAssignedStaff", fields: [assignedCinemaId], references: [id], onDelete: SetNull)
+  bookings         Booking[]
+  reviews          Review[]
+  scannedTickets   Ticket[]        @relation("StaffScannedTickets")
+  refundRequests   RefundRequest[]
+  processedRefunds RefundRequest[] @relation("AdminProcessedRefunds")
 
   @@map("users")
 }
@@ -205,6 +215,7 @@ model Booking {
   bookingSeats BookingSeat[]
   payment      Payment?
   ticket       Ticket?
+  refundRequest RefundRequest?
 
   @@index([status, expiresAt])
   @@map("bookings")
@@ -274,3 +285,24 @@ model Review {
 
   @@map("reviews")
 }
+
+model RefundRequest {
+  id            String       @id @default(uuid())
+  bookingId     String       @unique
+  userId        String
+  reason        String       @db.Text
+  status        RefundStatus @default(PENDING)
+  adminNote     String?      @db.Text
+  refundAmount  Int
+  processedById String?
+  processedAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  booking       Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  processedBy   User?        @relation("AdminProcessedRefunds", fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@map("refund_requests")
+}
+

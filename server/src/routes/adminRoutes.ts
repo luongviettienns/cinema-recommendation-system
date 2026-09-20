@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { adminController } from '../controllers/adminController';
+import { refundController } from '../controllers/refundController';
 import { authGuard, roleGuard } from '../middlewares/authGuard';
 
 const router = Router();
@@ -15,4 +16,10 @@ router.get('/staff', (req, res, next) => adminController.listStaff(req, res, nex
 router.post('/staff', (req, res, next) => adminController.createStaff(req, res, next));
 router.patch('/staff/:id', (req, res, next) => adminController.updateStaff(req, res, next));
 
+// Refund management endpoints
+router.get('/refunds', (req, res, next) => refundController.listAdminRefunds(req, res, next));
+router.patch('/refunds/:id/process', (req, res, next) => refundController.processRefund(req, res, next));
+router.post('/refunds/direct-cancel', (req, res, next) => refundController.directCancel(req, res, next));
+
 export default router;
+

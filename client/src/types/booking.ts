@@ -15,6 +15,10 @@ export interface IBooking {
   paymentStatus: 'pending' | 'completed' | 'failed';
   bookingCode: string;
   createdAt: string;
+  status?: 'HOLDING' | 'PAID' | 'REFUND_PENDING' | 'CANCELLED' | 'EXPIRED';
+  refundStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  refundReason?: string;
+  adminNote?: string;
 }
 
 export interface ICreateBookingInput {

@@ -54,6 +54,7 @@ import paymentRoutes from './routes/paymentRoutes';
 import ticketRoutes from './routes/ticketRoutes';
 import staffRoutes from './routes/staffRoutes';
 import adminRoutes from './routes/adminRoutes';
+import refundRoutes from './routes/refundRoutes';
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/movies', movieRoutes);
@@ -64,6 +65,7 @@ app.use('/api/v1/payments', paymentRoutes);
 app.use('/api/v1/tickets', ticketRoutes);
 app.use('/api/v1/staff', staffRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/refunds', refundRoutes);
 
 // Global Error Handler Middleware
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
