@@ -7,8 +7,8 @@ export class StaffController {
    */
   async scanTicket(req: Request, res: Response, next: NextFunction) {
     try {
-      const staffUserId = req.user?.id;
-      if (!staffUserId) {
+      const staffActor = req.user;
+      if (!staffActor) {
         return res.status(401).json({
           success: false,
           error: { code: 'UNAUTHORIZED', message: 'Yêu cầu đăng nhập tài khoản nhân viên' },
@@ -18,7 +18,7 @@ export class StaffController {
       const { qrCodeSignature, ticketCode } = req.body;
       const target = qrCodeSignature || ticketCode;
 
-      const result = await staffService.scanTicket(staffUserId, target);
+      const result = await staffService.scanTicket(staffActor, target);
       res.status(200).json({
         success: true,
         data: result,
@@ -33,15 +33,15 @@ export class StaffController {
    */
   async sellBoxOffice(req: Request, res: Response, next: NextFunction) {
     try {
-      const staffUserId = req.user?.id;
-      if (!staffUserId) {
+      const staffActor = req.user;
+      if (!staffActor) {
         return res.status(401).json({
           success: false,
           error: { code: 'UNAUTHORIZED', message: 'Yêu cầu đăng nhập tài khoản nhân viên' },
         });
       }
 
-      const result = await staffService.sellBoxOfficeTicket(staffUserId, req.body);
+      const result = await staffService.sellBoxOfficeTicket(staffActor, req.body);
       res.status(201).json({
         success: true,
         data: result,
@@ -57,15 +57,15 @@ export class StaffController {
    */
   async swapSeat(req: Request, res: Response, next: NextFunction) {
     try {
-      const staffUserId = req.user?.id;
-      if (!staffUserId) {
+      const staffActor = req.user;
+      if (!staffActor) {
         return res.status(401).json({
           success: false,
           error: { code: 'UNAUTHORIZED', message: 'Yêu cầu đăng nhập tài khoản nhân viên' },
         });
       }
 
-      const result = await staffService.swapSeat(staffUserId, req.body);
+      const result = await staffService.swapSeat(staffActor, req.body);
       res.status(200).json({
         success: true,
         data: result,
@@ -81,8 +81,15 @@ export class StaffController {
    */
   async getShowtimeAttendance(req: Request, res: Response, next: NextFunction) {
     try {
+      const staffActor = req.user;
+      if (!staffActor) {
+        return res.status(401).json({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Yêu cầu đăng nhập tài khoản nhân viên' },
+        });
+      }
       const { id } = req.params;
-      const result = await staffService.getShowtimeAttendance(id);
+      const result = await staffService.getShowtimeAttendance(staffActor, id);
       res.status(200).json({
         success: true,
         data: result,
@@ -97,8 +104,15 @@ export class StaffController {
    */
   async getTodayShowtimes(req: Request, res: Response, next: NextFunction) {
     try {
+      const staffActor = req.user;
+      if (!staffActor) {
+        return res.status(401).json({
+          success: false,
+          error: { code: 'UNAUTHORIZED', message: 'Yêu cầu đăng nhập tài khoản nhân viên' },
+        });
+      }
       const cinemaId = req.query.cinemaId as string | undefined;
-      const result = await staffService.getTodayShowtimes(cinemaId);
+      const result = await staffService.getTodayShowtimes(staffActor, cinemaId);
       res.status(200).json({
         success: true,
         data: result,

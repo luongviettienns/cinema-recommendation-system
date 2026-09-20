@@ -2,6 +2,11 @@ import { prisma } from '../prisma';
 import { ticketService } from './ticketService';
 import { BookingStatus, PaymentStatus, PaymentMethod, SeatType } from '@prisma/client';
 import crypto from 'crypto';
+import {
+  assertStaffCinemaAccess,
+  resolveStaffCinemaScope,
+  type StaffActorContext,
+} from './staffAuthorization';
 
 export class StaffService {
   private secret =
@@ -10,7 +15,7 @@ export class StaffService {
   /**
    * 1. Soát vé QR / Check-in tại cổng rạp (quét liên tục, chống quét 2 lần)
    */
-  async scanTicket(staffUserId: string, qrCodeOrTicketCode: string) {
+  async scanTicket(actor: StaffActorContext, qrCodeOrTicketCode: string) {
     if (!qrCodeOrTicketCode || !qrCodeOrTicketCode.trim()) {
       const err = new Error('Mã vé hoặc mã QR không được để trống');
       (err as any).statusCode = 400;
@@ -18,7 +23,12 @@ export class StaffService {
       throw err;
     }
 
-    const result = await ticketService.checkInTicket(staffUserId, qrCodeOrTicketCode.trim());
+    const cinemaScope = resolveStaffCinemaScope(actor);
+    const result = await ticketService.checkInTicket(
+      actor.id,
+      qrCodeOrTicketCode.trim(),
+      cinemaScope,
+    );
     return {
       valid: true,
       message: 'Soát vé thành công — Khách được phép vào rạp!',
@@ -32,7 +42,7 @@ export class StaffService {
    * Thu tiền mặt hoặc thẻ tại quầy, tạo vé PAID và mã QR ngay lập tức không qua giữ chỗ 7 phút
    */
   async sellBoxOfficeTicket(
-    staffUserId: string,
+    actor: StaffActorContext,
     data: {
       showtimeId: string;
       seatIds: string[];
@@ -67,6 +77,8 @@ export class StaffService {
       (err as any).code = 'SHOWTIME_NOT_FOUND';
       throw err;
     }
+
+    assertStaffCinemaAccess(actor, showtime.room.cinema.id);
 
     // 2. Check if seats belong to room
     const seats = await prisma.seat.findMany({
@@ -132,7 +144,7 @@ export class StaffService {
       const booking = await tx.booking.create({
         data: {
           bookingCode,
-          userId: staffUserId,
+          userId: actor.id,
           showtimeId,
           totalAmount,
           status: BookingStatus.PAID,
@@ -225,7 +237,7 @@ export class StaffService {
    * 3. Xử lý sự cố đổi ghế tại chỗ (ghế hỏng/trục trặc sát giờ chiếu)
    */
   async swapSeat(
-    staffUserId: string,
+    actor: StaffActorContext,
     data: {
       showtimeId: string;
       ticketId: string;
@@ -270,6 +282,15 @@ export class StaffService {
         const err = new Error('Không tìm thấy vé cần đổi ghế');
         (err as any).statusCode = 404;
         (err as any).code = 'TICKET_NOT_FOUND';
+        throw err;
+      }
+
+      assertStaffCinemaAccess(actor, ticket.booking.showtime.room.cinema.id);
+
+      if (ticket.booking.showtimeId !== showtimeId) {
+        const err = new Error('Vé không thuộc suất chiếu được yêu cầu');
+        (err as any).statusCode = 400;
+        (err as any).code = 'SHOWTIME_MISMATCH';
         throw err;
       }
 
@@ -344,7 +365,7 @@ export class StaffService {
           type: newSeat.seatType,
         },
         reason,
-        handledBy: staffUserId,
+        handledBy: actor.id,
       };
     });
   }
@@ -352,7 +373,7 @@ export class StaffService {
   /**
    * 4. Đối chiếu sĩ số phòng chiếu của 1 suất chiếu đang diễn ra
    */
-  async getShowtimeAttendance(showtimeId: string) {
+  async getShowtimeAttendance(actor: StaffActorContext, showtimeId: string) {
     const showtime = await prisma.showtime.findUnique({
       where: { id: showtimeId },
       include: {
@@ -372,6 +393,8 @@ export class StaffService {
       (err as any).code = 'SHOWTIME_NOT_FOUND';
       throw err;
     }
+
+    assertStaffCinemaAccess(actor, showtime.room.cinema.id);
 
     // Get all paid tickets for this showtime
     const tickets = await prisma.ticket.findMany({
@@ -438,7 +461,8 @@ export class StaffService {
   /**
    * 5. Lấy danh sách suất chiếu hôm nay phục vụ tác nghiệp tại quầy & cửa soát vé
    */
-  async getTodayShowtimes(cinemaId?: string) {
+  async getTodayShowtimes(actor: StaffActorContext, requestedCinemaId?: string) {
+    const cinemaId = resolveStaffCinemaScope(actor, requestedCinemaId);
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 

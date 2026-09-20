@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { prisma } from '../prisma';
+import { assertCinemaScope } from './staffAuthorization';
 
 export class TicketService {
   private secret =
@@ -132,7 +133,11 @@ export class TicketService {
   /**
    * Check in ticket at cinema gate by staff
    */
-  async checkInTicket(staffUserId: string, qrCodeOrTicketCode: string) {
+  async checkInTicket(
+    staffUserId: string,
+    qrCodeOrTicketCode: string,
+    allowedCinemaId?: string,
+  ) {
     let ticketCode = qrCodeOrTicketCode;
 
     // Check if input is an HMAC-signed QR string (base64Payload.signature)
@@ -201,6 +206,8 @@ export class TicketService {
       (err as any).code = 'TICKET_NOT_FOUND';
       throw err;
     }
+
+    assertCinemaScope(allowedCinemaId, ticket.booking.showtime.room.cinema.id);
 
     // Double check-in prevention
     if (ticket.isUsed) {

@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { prisma } from '../prisma';
 
 export interface CreateStaffDTO {
@@ -17,6 +17,14 @@ export interface UpdateStaffDTO {
   isActive?: boolean;
 }
 
+export interface StaffListQuery {
+  search?: string;
+  cinemaId?: string;
+  status?: 'ACTIVE' | 'INACTIVE';
+  page: number;
+  limit: number;
+}
+
 export interface StaffSummary {
   id: string;
   name: string;
@@ -26,9 +34,19 @@ export interface StaffSummary {
   assignedCinema: {
     id: string;
     name: string;
-  };
+  } | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface StaffListResult {
+  items: StaffSummary[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 const staffSummarySelect = {
@@ -63,30 +81,29 @@ const toStaffSummary = (staff: {
   createdAt: Date;
   updatedAt: Date;
   assignedCinema: { id: string; name: string } | null;
-}): StaffSummary => {
-  if (!staff.assignedCinema) {
-    throw createError('Nhân viên phải được phân công cho một rạp', 400, 'STAFF_CINEMA_REQUIRED');
-  }
-
-  return {
-    id: staff.id,
-    name: staff.name,
-    email: staff.email,
-    phone: staff.phone,
-    isActive: staff.isActive,
-    assignedCinema: staff.assignedCinema,
-    createdAt: staff.createdAt,
-    updatedAt: staff.updatedAt,
-  };
-};
+}): StaffSummary => ({
+  id: staff.id,
+  name: staff.name,
+  email: staff.email,
+  phone: staff.phone,
+  isActive: staff.isActive,
+  assignedCinema: staff.assignedCinema,
+  createdAt: staff.createdAt,
+  updatedAt: staff.updatedAt,
+});
 
 const ensureCinemaExists = async (assignedCinemaId: string | undefined) => {
-  if (!assignedCinemaId?.trim()) {
-    throw createError('Nhân viên phải được phân công cho một rạp', 400, 'STAFF_CINEMA_REQUIRED');
+  const normalizedCinemaId = assignedCinemaId?.trim();
+  if (!normalizedCinemaId) {
+    throw createError(
+      'Nhân viên phải được phân công cho một rạp',
+      400,
+      'STAFF_CINEMA_REQUIRED',
+    );
   }
 
   const cinema = await prisma.cinema.findUnique({
-    where: { id: assignedCinemaId },
+    where: { id: normalizedCinemaId },
     select: { id: true },
   });
 
@@ -98,14 +115,46 @@ const ensureCinemaExists = async (assignedCinemaId: string | undefined) => {
 };
 
 export const staffManagementService = {
-  async list(): Promise<StaffSummary[]> {
-    const staff = await prisma.user.findMany({
-      where: { role: Role.STAFF },
-      select: staffSummarySelect,
-      orderBy: { createdAt: 'desc' },
-    });
+  async list(query: StaffListQuery): Promise<StaffListResult> {
+    const where: Prisma.UserWhereInput = {
+      role: Role.STAFF,
+      ...(query.cinemaId ? { assignedCinemaId: query.cinemaId } : {}),
+      ...(query.status ? { isActive: query.status === 'ACTIVE' } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search } },
+              { email: { contains: query.search } },
+              {
+                assignedCinema: {
+                  is: { name: { contains: query.search } },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
 
-    return staff.map(toStaffSummary);
+    const [staff, total] = await prisma.$transaction([
+      prisma.user.findMany({
+        where,
+        select: staffSummarySelect,
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    return {
+      items: staff.map(toStaffSummary),
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / query.limit)),
+      },
+    };
   },
 
   async create(data: CreateStaffDTO): Promise<StaffSummary> {
@@ -126,7 +175,7 @@ export const staffManagementService = {
         name: data.name.trim(),
         email,
         password,
-        phone: data.phone?.trim(),
+        phone: data.phone?.trim() || null,
         role: Role.STAFF,
         isActive: true,
         assignedCinemaId,
@@ -148,7 +197,11 @@ export const staffManagementService = {
 
     if (!existingUser || existingUser.role !== Role.STAFF) {
       if (existingUser?.role === Role.ADMIN) {
-        throw createError('Không thể chỉnh sửa tài khoản quản trị viên', 403, 'ADMIN_ACCOUNT_PROTECTED');
+        throw createError(
+          'Không thể chỉnh sửa tài khoản quản trị viên',
+          403,
+          'ADMIN_ACCOUNT_PROTECTED',
+        );
       }
 
       throw createError('Không tìm thấy tài khoản nhân viên', 404, 'STAFF_NOT_FOUND');
@@ -160,14 +213,18 @@ export const staffManagementService = {
         : existingUser.assignedCinemaId;
 
     if (!assignedCinemaId) {
-      throw createError('Nhân viên phải được phân công cho một rạp', 400, 'STAFF_CINEMA_REQUIRED');
+      throw createError(
+        'Nhân viên phải được phân công cho một rạp',
+        400,
+        'STAFF_CINEMA_REQUIRED',
+      );
     }
 
     const staff = await prisma.user.update({
       where: { id: staffId },
       data: {
         ...(data.name !== undefined ? { name: data.name.trim() } : {}),
-        ...(data.phone !== undefined ? { phone: data.phone.trim() } : {}),
+        ...(data.phone !== undefined ? { phone: data.phone.trim() || null } : {}),
         ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
         assignedCinemaId,
       },
@@ -175,5 +232,68 @@ export const staffManagementService = {
     });
 
     return toStaffSummary(staff);
+  },
+
+  async updateUserRole(userId: string, role: Role, assignedCinemaId?: string) {
+    return prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.findUnique({
+        where: { id: userId },
+        select: { role: true, assignedCinemaId: true },
+      });
+
+      if (!user) {
+        throw createError('Không tìm thấy người dùng', 404, 'USER_NOT_FOUND');
+      }
+      if (user.role === Role.ADMIN) {
+        throw createError(
+          'Không thể thay đổi tài khoản quản trị viên',
+          403,
+          'ADMIN_ACCOUNT_PROTECTED',
+        );
+      }
+
+      let nextCinemaId: string | null = null;
+      if (role === Role.STAFF) {
+        if (user.role !== Role.STAFF && !assignedCinemaId?.trim()) {
+          throw createError(
+            'Nhân viên phải được phân công cho một rạp',
+            400,
+            'STAFF_CINEMA_REQUIRED',
+          );
+        }
+        nextCinemaId = assignedCinemaId?.trim() || user.assignedCinemaId;
+        if (!nextCinemaId) {
+          throw createError(
+            'Nhân viên phải được phân công cho một rạp',
+            400,
+            'STAFF_CINEMA_REQUIRED',
+          );
+        }
+
+        const cinema = await transaction.cinema.findUnique({
+          where: { id: nextCinemaId },
+          select: { id: true },
+        });
+        if (!cinema) {
+          throw createError('Không tìm thấy cụm rạp', 404, 'CINEMA_NOT_FOUND');
+        }
+      }
+
+      return transaction.user.update({
+        where: { id: userId },
+        data: {
+          role,
+          assignedCinemaId: role === Role.STAFF ? nextCinemaId : null,
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          assignedCinemaId: true,
+          updatedAt: true,
+        },
+      });
+    });
   },
 };

@@ -6,7 +6,23 @@ import { prisma } from '../prisma';
 describe('Admin Analytics & Management API (/api/v1/admin)', () => {
   let adminToken = '';
   let customerToken = '';
-  let testUserId = '';
+  let adminId = '';
+  let testCinemaId = '';
+  const testUserIds: string[] = [];
+
+  const createTestUser = async (role: 'CUSTOMER' | 'STAFF' = 'CUSTOMER') => {
+    const user = await prisma.user.create({
+      data: {
+        email: `temp_admin_test_${crypto.randomUUID()}@cinema.vn`,
+        password: 'hashedpassword',
+        name: 'Legacy role test user',
+        role,
+        ...(role === 'STAFF' ? { assignedCinemaId: testCinemaId } : {}),
+      },
+    });
+    testUserIds.push(user.id);
+    return user;
+  };
 
   beforeAll(async () => {
     // 1. Login admin
@@ -30,13 +46,32 @@ describe('Admin Analytics & Management API (/api/v1/admin)', () => {
         role: 'CUSTOMER',
       },
     });
-    testUserId = tempUser.id;
+    testUserIds.push(tempUser.id);
+
+    const [protectedAdmin, cinema] = await Promise.all([
+      prisma.user.create({
+        data: {
+          email: `protected_admin_${crypto.randomUUID()}@cinema.vn`,
+          password: 'hashedpassword',
+          name: 'Protected Admin test target',
+          role: 'ADMIN',
+        },
+      }),
+      prisma.cinema.create({
+        data: {
+          name: `Legacy role cinema ${crypto.randomUUID()}`,
+          address: 'Legacy role test address',
+        },
+      }),
+    ]);
+    adminId = protectedAdmin.id;
+    testUserIds.push(protectedAdmin.id);
+    testCinemaId = cinema.id;
   });
 
   afterAll(async () => {
-    if (testUserId) {
-      await prisma.user.deleteMany({ where: { id: testUserId } });
-    }
+    await prisma.user.deleteMany({ where: { id: { in: testUserIds } } });
+    if (testCinemaId) await prisma.cinema.deleteMany({ where: { id: testCinemaId } });
     await prisma.$disconnect();
   });
 
@@ -92,14 +127,81 @@ describe('Admin Analytics & Management API (/api/v1/admin)', () => {
     expect(res.body.data.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('PATCH /api/v1/admin/users/:id/role - should allow Admin to update user role', async () => {
+  it('PATCH /api/v1/admin/users/:id/role - rejects Staff promotion without a cinema', async () => {
+    const user = await createTestUser();
     const res = await request(app)
-      .patch(`/api/v1/admin/users/${testUserId}/role`)
+      .patch(`/api/v1/admin/users/${user.id}/role`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ role: 'STAFF' });
 
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('STAFF_CINEMA_REQUIRED');
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: user.id } })).resolves.toMatchObject({
+      role: 'CUSTOMER',
+      assignedCinemaId: null,
+    });
+  });
+
+  it('PATCH /api/v1/admin/users/:id/role - rejects Staff promotion with an unknown cinema', async () => {
+    const user = await createTestUser();
+    const res = await request(app)
+      .patch(`/api/v1/admin/users/${user.id}/role`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'STAFF', assignedCinemaId: crypto.randomUUID() });
+
+    expect(res.status).toBe(404);
+    expect(res.body.error.code).toBe('CINEMA_NOT_FOUND');
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: user.id } })).resolves.toMatchObject({
+      role: 'CUSTOMER',
+      assignedCinemaId: null,
+    });
+  });
+
+  it('PATCH /api/v1/admin/users/:id/role - atomically promotes Staff with a real cinema', async () => {
+    const user = await createTestUser();
+    const res = await request(app)
+      .patch(`/api/v1/admin/users/${user.id}/role`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'STAFF', assignedCinemaId: testCinemaId });
+
     expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.role).toBe('STAFF');
+    expect(res.body.data).toMatchObject({
+      id: user.id,
+      role: 'STAFF',
+      assignedCinemaId: testCinemaId,
+    });
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: user.id } })).resolves.toMatchObject({
+      role: 'STAFF',
+      assignedCinemaId: testCinemaId,
+    });
+  });
+
+  it('PATCH /api/v1/admin/users/:id/role - clears assignment when Staff is demoted', async () => {
+    const user = await createTestUser('STAFF');
+    const res = await request(app)
+      .patch(`/api/v1/admin/users/${user.id}/role`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'CUSTOMER' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({
+      id: user.id,
+      role: 'CUSTOMER',
+      assignedCinemaId: null,
+    });
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: user.id } })).resolves.toMatchObject({
+      role: 'CUSTOMER',
+      assignedCinemaId: null,
+    });
+  });
+
+  it('PATCH /api/v1/admin/users/:id/role - protects every Admin target', async () => {
+    const res = await request(app)
+      .patch(`/api/v1/admin/users/${adminId}/role`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'CUSTOMER' });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe('ADMIN_ACCOUNT_PROTECTED');
   });
 });

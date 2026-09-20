@@ -6,6 +6,7 @@ import { prisma } from '../prisma';
 export interface AuthUserPayload {
   id: string;
   role: Role;
+  assignedCinemaId: string | null;
 }
 
 // Extend Express Request
@@ -64,6 +65,7 @@ export const authGuard = async (req: Request, res: Response, next: NextFunction)
         id: true,
         role: true,
         isActive: true,
+        assignedCinemaId: true,
       },
     });
 
@@ -78,7 +80,11 @@ export const authGuard = async (req: Request, res: Response, next: NextFunction)
       return;
     }
 
-    req.user = { id: user.id, role: user.role };
+    req.user = {
+      id: user.id,
+      role: user.role,
+      assignedCinemaId: user.assignedCinemaId,
+    };
     next();
   } catch (error) {
     next(error);
