@@ -64,19 +64,20 @@ export const Navbar: React.FC = () => {
           </Link>
 
           {/* Search bar (Desktop) */}
-          <form onSubmit={handleSearch} className="hidden md:flex items-center relative max-w-xs w-full">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" />
+          <form onSubmit={handleSearch} className="hidden md:flex items-center relative max-w-xs w-full" role="search" aria-label="Tìm kiếm phim">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none" aria-hidden="true" />
             <input
-              type="text"
+              type="search"
               placeholder="Tìm phim, thể loại, đạo diễn..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Nhập từ khóa tìm kiếm"
               className="w-full bg-slate-100/80 hover:bg-slate-100 text-slate-900 placeholder:text-slate-400 text-xs rounded-full pl-9 pr-4 py-2 border border-transparent focus:border-rose-400 focus:bg-white focus:outline-none transition-all"
             />
           </form>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden lg:flex items-center gap-1.5">
+          <nav className="hidden lg:flex items-center gap-1.5" aria-label="Điều hướng chính">
             {navLinks.map((link) => {
               if (link.protected && !isAuthenticated) return null;
               const isActive = location.pathname === link.path;
@@ -85,6 +86,7 @@ export const Navbar: React.FC = () => {
                   key={link.name}
                   to={link.path}
                   onClick={(e) => handleNavClick(link.path, e)}
+                  aria-current={isActive ? 'page' : undefined}
                   className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
                       ? 'text-rose-600 bg-rose-50/60 font-semibold'
@@ -103,7 +105,10 @@ export const Navbar: React.FC = () => {
               <div className="relative">
                 <button
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
-                  className="flex items-center gap-2.5 p-1.5 rounded-full hover:bg-slate-100 transition-colors focus:outline-none"
+                  aria-haspopup="true"
+                  aria-expanded={isUserMenuOpen}
+                  aria-label={`Menu tài khoản của ${user.name}`}
+                  className="flex items-center gap-2.5 p-1.5 rounded-full hover:bg-slate-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                 >
                   <img
                     src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80'}

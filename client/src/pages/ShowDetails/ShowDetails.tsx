@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Play, Clock, Calendar, Star, MapPin, ArrowLeft, Ticket } from 'lucide-react';
+import { motion } from 'motion/react';
 import { IMovie } from '../../types/movie';
 import { IShowtime } from '../../types/showtime';
 import { movieService } from '../../services/movieService';
@@ -95,7 +96,12 @@ export const ShowDetails: React.FC = () => {
   };
 
   return (
-    <div className="space-y-12">
+    <motion.div
+      className="space-y-12"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+    >
       {/* Back to Home Button */}
       <div>
         <Link
@@ -338,6 +344,6 @@ export const ShowDetails: React.FC = () => {
         isOpen={isGlossaryOpen}
         onClose={() => setIsGlossaryOpen(false)}
       />
-    </div>
+    </motion.div>
   );
 };

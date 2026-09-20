@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Clock, Calendar, MapPin, Film } from 'lucide-react';
+import { motion } from 'motion/react';
 import { ISeat } from '../../types/seat';
 import { IShowtime } from '../../types/showtime';
 import { IMovie } from '../../types/movie';
@@ -120,7 +121,12 @@ export const BookSeats: React.FC = () => {
   const selectedSeatNumbers = selectedSeats.map((s) => s.seatNumber);
 
   return (
-    <div className="space-y-6 pb-28">
+    <motion.div
+      className="space-y-6 pb-28"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+    >
       {/* Back Link */}
       <div>
         <Link
@@ -190,6 +196,6 @@ export const BookSeats: React.FC = () => {
         totalPrice={totalPrice}
         onProceed={handleProceedToCheckout}
       />
-    </div>
+    </motion.div>
   );
 };
